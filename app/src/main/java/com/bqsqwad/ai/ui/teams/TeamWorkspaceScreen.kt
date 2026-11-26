@@ -1,5 +1,3 @@
-import androidx.compose.material3.TabRow
-import androidx.compose.material3.Tab
 package com.bqsqwad.ai.ui.teams
 
 import androidx.compose.foundation.layout.*
@@ -8,10 +6,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.ListAlt
+import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,10 +24,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.platform.LocalConfiguration
 import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -47,6 +54,15 @@ data class TeamMemberRow(
     val spendLimitCredits: Double? = null,
 )
 
+
+data class TeamPlanItem(
+    val id: String,
+    val title: String,
+    val details: String,
+    val status: String,
+    val submittedByName: String,
+    val createdAt: String,
+)
 
 data class TeamTaskItem(
     val id: String,
@@ -115,7 +131,12 @@ fun TeamWorkspaceScreen(
     var aiBusy by remember { mutableStateOf(false) }
     var aiBillingSource by remember { mutableStateOf("personal") }
     var error by remember { mutableStateOf<String?>(null) }
-    var selectedTab by remember { mutableStateOf(0) } // 0: Chat, 1: Tasks, 2: Codon
+    var selectedTab by remember { mutableStateOf(0) } // 0: Chat, 1: Plan Box, 2: Tasks, 3: BQ Codron
+    var plans by remember { mutableStateOf<List<TeamPlanItem>>(emptyList()) }
+    var plansLoading by remember { mutableStateOf(false) }
+    var showCreatePlanDialog by remember { mutableStateOf(false) }
+    var newPlanTitle by remember { mutableStateOf("") }
+    var newPlanDetails by remember { mutableStateOf("") }
     var tasks by remember { mutableStateOf<List<TeamTaskItem>>(emptyList()) }
     var tasksLoading by remember { mutableStateOf(false) }
     var showCreateTaskDialog by remember { mutableStateOf(false) }
@@ -129,12 +150,42 @@ fun TeamWorkspaceScreen(
     var codonPrompt by remember { mutableStateOf("") }
     var codonAction by remember { mutableStateOf("build") }
     var codonLogs by remember { mutableStateOf(listOf(
-        "[BQ Codon] Autonomous Software Engineering Engine Initialized.",
-        "[BQ Codon] Gradle & Build Runner ('gradools') ready.",
-        "[BQ Codon] GitHub / Repository connector status: Connected & verified.",
-        "[BQ Codon] Ready to generate full applications, execute test suites, and debug errors."
+        "[BQ Codron] Autonomous Software Engineering Engine Initialized (Powered by GPT 5.6 Luna).",
+        "[BQ Codron] Gradle & Build Runner ('gradools') ready.",
+        "[BQ Codron] GitHub / Repository connector status: Connected & verified.",
+        "[BQ Codron] Ready to generate full applications, execute test suites, and debug errors."
     )) }
     val listState = rememberLazyListState()
+
+    fun loadPlans() {
+        val tid = teamId ?: return
+        scope.launch {
+            plansLoading = true
+            try {
+                val token = authTokenProvider() ?: return@launch
+                val res = apiPost(baseUrl, token, "/native/teams/plans/list", JSONObject().put("teamId", tid))
+                plans = parsePlans(res.optJSONArray("plans"))
+            } catch (_: Exception) {
+            } finally {
+                plansLoading = false
+            }
+        }
+    }
+
+    fun loadTasks() {
+        val tid = teamId ?: return
+        scope.launch {
+            tasksLoading = true
+            try {
+                val token = authTokenProvider() ?: return@launch
+                val res = apiPost(baseUrl, token, "/native/teams/tasks/list", JSONObject().put("teamId", tid))
+                tasks = parseTasks(res.optJSONArray("tasks"))
+            } catch (_: Exception) {
+            } finally {
+                tasksLoading = false
+            }
+        }
+    }
 
     fun refreshMessages(tid: String, pid: String) {
         scope.launch {
@@ -432,7 +483,7 @@ fun TeamWorkspaceScreen(
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
                             if (memberStatus == "pending") "Waiting for approval."
-                            else "Join this team to message members, track tasks, and build with BQ Codon.",
+                            else "Join this team to message members, track tasks, and build with BQ Codron.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -446,18 +497,23 @@ fun TeamWorkspaceScreen(
                         )
                         Tab(
                             selected = selectedTab == 1,
-                            onClick = { selectedTab = 1; loadTasks() },
-                            text = { Text("Tasks (${tasks.size})", style = MaterialTheme.typography.labelMedium) }
+                            onClick = { selectedTab = 1; loadPlans() },
+                            text = { Text("Plan Box (${plans.size})", style = MaterialTheme.typography.labelMedium) }
                         )
                         Tab(
                             selected = selectedTab == 2,
-                            onClick = { selectedTab = 2 },
-                            text = { Text("⚡ BQ Codon", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) }
+                            onClick = { selectedTab = 2; loadTasks() },
+                            text = { Text("Tasks (${tasks.size})", style = MaterialTheme.typography.labelMedium) }
+                        )
+                        Tab(
+                            selected = selectedTab == 3,
+                            onClick = { selectedTab = 3 },
+                            text = { Text("⚡ BQ Codron", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) }
                         )
                     }
 
                     if (selectedTab == 0) {
-                        // Nudge Banner for BQ Codon
+                        // Nudge Banner for BQ Codron
                         Surface(
                             color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
@@ -469,12 +525,12 @@ fun TeamWorkspaceScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    "Plan with AI here. Ready to build apps or run Gradle test suites? Switch to BQ Codon!",
+                                    "Plan with AI here. Ready to build apps or run Gradle test suites? Switch to BQ Codron!",
                                     style = MaterialTheme.typography.labelSmall,
                                     modifier = Modifier.weight(1f)
                                 )
                                 TextButton(onClick = { selectedTab = 2 }) {
-                                    Text("Switch to Codon", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                    Text("Switch to Codron", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -630,6 +686,107 @@ fun TeamWorkspaceScreen(
                         )
                     }
                 } else if (selectedTab == 1) {
+                    // TAB 1: TEAM PLAN BOX
+                    Column(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Column {
+                                Text("Team Plan Box", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Text("Draft and approve specifications. When ready, activate BQ Codron.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Button(onClick = { showCreatePlanDialog = true }) {
+                                Text("+ Add Plan")
+                            }
+                        }
+
+                        if (balance <= 0.0) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        "Team pool empty (0.00 credits). Top up to activate BQ Codron.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    TextButton(onClick = { showTopupDialog = true }) {
+                                        Text("+ Buy Credits", fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+
+                        if (plansLoading) {
+                            Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                            }
+                        } else if (plans.isEmpty()) {
+                            Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("No plans in the Plan Box yet.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Spacer(Modifier.height(8.dp))
+                                    OutlinedButton(onClick = { showCreatePlanDialog = true }) { Text("+ Add First Plan") }
+                                }
+                            }
+                        } else {
+                            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
+                                items(plans, key = { it.id }) { p ->
+                                    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                                Text(p.title, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
+                                                Surface(
+                                                    color = if (p.status == "ready" || p.status == "approved") MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                                                    shape = RoundedCornerShape(4.dp)
+                                                ) {
+                                                    Text(
+                                                        p.status.uppercase(),
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    )
+                                                }
+                                            }
+                                            if (p.details.isNotBlank()) {
+                                                Text(p.details, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                            Text(
+                                                "By: ${p.submittedByName}${if (p.createdAt.isNotBlank()) " · ${p.createdAt.take(10)}" else ""}",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                                TextButton(onClick = {
+                                                    val tid = teamId ?: return@TextButton
+                                                    val nextStatus = if (p.status == "ready") "draft" else "ready"
+                                                    scope.launch {
+                                                        val token = authTokenProvider() ?: return@launch
+                                                        apiPost(baseUrl, token, "/native/teams/plans/update", JSONObject().put("teamId", tid).put("planId", p.id).put("status", nextStatus))
+                                                        loadPlans()
+                                                    }
+                                                }) {
+                                                    Text(if (p.status == "ready") "Mark Draft" else "Mark Ready")
+                                                }
+                                                Button(onClick = {
+                                                    selectedTab = 3
+                                                    codonPrompt = "[EXECUTING APPROVED TEAM PLAN: ${p.title}]\nSpecifications:\n${p.details}\n\nTask: Generate production code and run Gradle test suites."
+                                                    codonLogs = codonLogs + listOf(">>> [Plan Box Activation] Team plan '${p.title}' dispatched to BQ Codron (GPT 5.6 Luna).")
+                                                }) {
+                                                    Text("Activate BQ Codron", fontWeight = FontWeight.Bold)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else if (selectedTab == 3) {
                     // TAB 1: TEAM TASKS
                     Column(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -694,10 +851,10 @@ fun TeamWorkspaceScreen(
                                                         Text(if (t.status == "done") "Reopen" else "Advance")
                                                     }
                                                     TextButton(onClick = {
-                                                        selectedTab = 2
+                                                        selectedTab = 3
                                                         codonPrompt = "Task: ${t.title}\nDetails: ${t.description}\nImplement code and verify test suite."
                                                     }) {
-                                                        Text("Send to Codon", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                                        Text("Send to BQ Codron", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                                                     }
                                                 }
                                             }
@@ -707,7 +864,7 @@ fun TeamWorkspaceScreen(
                             }
                         }
                     }
-                } else if (selectedTab == 2) {
+                } else if (selectedTab == 3) {
                     // TAB 2: BQ CODON (AUTONOMOUS AI ENGINEER)
                     Column(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Surface(
@@ -718,7 +875,8 @@ fun TeamWorkspaceScreen(
                             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                     Column {
-                                        Text("⚡ BQ Codon — Autonomous Engineer", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                        Text("⚡ BQ Codron — Autonomous Engineer", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+Text("Powered by GPT 5.6 Luna", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         Text("Full-stack builder, Gradle & test runner ('gradools'), and repository sync.", style = MaterialTheme.typography.bodySmall)
                                     }
                                     TextButton(onClick = { showTopupDialog = true }) {
@@ -769,19 +927,19 @@ fun TeamWorkspaceScreen(
                                     item {
                                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                             CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
-                                            Text("Executing BQ Codon diagnostic runner...", style = MaterialTheme.typography.labelSmall)
+                                            Text("Executing BQ Codron diagnostic runner...", style = MaterialTheme.typography.labelSmall)
                                         }
                                     }
                                 }
                             }
                         }
 
-                        // Codon Input
+                        // Codron Input
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             OutlinedTextField(
                                 value = codonPrompt,
                                 onValueChange = { codonPrompt = it },
-                                placeholder = { Text("Instruct BQ Codon ($codonAction)...") },
+                                placeholder = { Text("Instruct BQ Codron ($codonAction)...") },
                                 modifier = Modifier.weight(1f),
                                 singleLine = false,
                                 maxLines = 3
@@ -795,8 +953,8 @@ fun TeamWorkspaceScreen(
                                     codonPrompt = ""
                                     codonLogs = codonLogs + listOf(
                                         ">>> [Action: ${codonAction.uppercase()}] $prompt",
-                                        "[BQ Codon] Allocating sandbox environment & analyzing codebase...",
-                                        if (codonAction == "test") "[BQ Codon] Executing Gradle test runner ('gradools')..." else "[BQ Codon] Generating multi-file patch with zero placeholders..."
+                                        "[BQ Codron] Allocating sandbox environment & analyzing codebase...",
+                                        if (codonAction == "test") "[BQ Codron] Executing Gradle test runner ('gradools')..." else "[BQ Codron] Generating multi-file patch with zero placeholders..."
                                     )
                                     scope.launch {
                                         aiBusy = true
@@ -812,12 +970,12 @@ fun TeamWorkspaceScreen(
                                                     .put("billingSource", aiBillingSource)
                                             )
                                             codonLogs = codonLogs + listOf(
-                                                "[BQ Codon] Operation successfully completed.",
-                                                "[BQ Codon] Build verification passed: 100%."
+                                                "[BQ Codron] Operation successfully completed.",
+                                                "[BQ Codron] Build verification passed: 100%."
                                             )
                                             refreshMessages(tid, pid)
                                         } catch (e: Exception) {
-                                            codonLogs = codonLogs + listOf("[BQ Codon Error] ${e.message}")
+                                            codonLogs = codonLogs + listOf("[BQ Codron Error] ${e.message}")
                                         } finally {
                                             aiBusy = false
                                         }
@@ -938,8 +1096,247 @@ fun TeamWorkspaceScreen(
             dismissButton = { TextButton(onClick = { deletingMemory = null }) { Text("Cancel") } },
         )
     }
+
+    if (showTopupDialog) {
+        AlertDialog(
+            onDismissRequest = { showTopupDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Text("Buy Team Credits")
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Add credits to the shared team credit pool. All active members and BQ Codron tools build from this balance.", style = MaterialTheme.typography.bodySmall)
+                    listOf(
+                        Triple(100, "$10", "Starter Pack"),
+                        Triple(200, "$20", "Most Popular"),
+                        Triple(500, "$43", "Pro Team Pack")
+                    ).forEach { (credits, price, label) ->
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (topupAmount == credits) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = Modifier.fillMaxWidth().selectable(
+                                selected = (topupAmount == credits),
+                                onClick = { topupAmount = credits }
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text("$credits Credits", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                                    Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Text(price, fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = !topupBusy,
+                    onClick = {
+                        val tid = teamId ?: return@Button
+                        scope.launch {
+                            topupBusy = true
+                            try {
+                                val token = authTokenProvider() ?: error("Sign in required")
+                                val res = apiPost(baseUrl, token, "/native/teams/credits/topup", JSONObject().put("teamId", tid).put("amount", topupAmount))
+                                balance = res.optDouble("balance", balance + topupAmount)
+                                showTopupDialog = false
+                            } catch (e: Exception) {
+                                error = e.message
+                            } finally {
+                                topupBusy = false
+                            }
+                        }
+                    }
+                ) {
+                    if (topupBusy) CircularProgressIndicator(modifier = Modifier.size(16.dp), color = MaterialTheme.colorScheme.onPrimary)
+                    else Text("Buy $topupAmount Credits")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTopupDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (showCreateTaskDialog) {
+        AlertDialog(
+            onDismissRequest = { showCreateTaskDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.ListAlt, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Text("Create Team Task")
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = newTaskTitle,
+                        onValueChange = { newTaskTitle = it },
+                        label = { Text("Task Title") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = newTaskDesc,
+                        onValueChange = { newTaskDesc = it },
+                        label = { Text("Description & Acceptance Criteria") },
+                        minLines = 3,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = !busy && newTaskTitle.isNotBlank(),
+                    onClick = {
+                        val tid = teamId ?: return@Button
+                        scope.launch {
+                            busy = true
+                            try {
+                                val token = authTokenProvider() ?: error("Sign in required")
+                                val body = JSONObject()
+                                    .put("teamId", tid)
+                                    .put("title", newTaskTitle.trim())
+                                    .put("description", newTaskDesc.trim())
+                                    .put("priority", newTaskPriority)
+                                    .put("assignedTo", newTaskAssignee)
+                                if (projectId != null) body.put("projectId", projectId)
+                                apiPost(baseUrl, token, "/native/teams/tasks/create", body)
+                                showCreateTaskDialog = false
+                                newTaskTitle = ""
+                                newTaskDesc = ""
+                                loadTasks()
+                            } catch (e: Exception) {
+                                error = e.message
+                            } finally {
+                                busy = false
+                            }
+                        }
+                    }
+                ) { Text("Create Task") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreateTaskDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (showCreatePlanDialog) {
+        AlertDialog(
+            onDismissRequest = { showCreatePlanDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.Description, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Text("Add to Team Plan Box")
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Submit a feature blueprint for team review. When ready, activate in BQ Codron.", style = MaterialTheme.typography.bodySmall)
+                    OutlinedTextField(
+                        value = newPlanTitle,
+                        onValueChange = { newPlanTitle = it },
+                        label = { Text("Plan / Feature Name") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = newPlanDetails,
+                        onValueChange = { newPlanDetails = it },
+                        label = { Text("Detailed Specifications & Steps") },
+                        minLines = 4,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = !busy && newPlanTitle.isNotBlank(),
+                    onClick = {
+                        val tid = teamId ?: return@Button
+                        scope.launch {
+                            busy = true
+                            try {
+                                val token = authTokenProvider() ?: error("Sign in required")
+                                val body = JSONObject()
+                                    .put("teamId", tid)
+                                    .put("title", newPlanTitle.trim())
+                                    .put("details", newPlanDetails.trim())
+                                    .put("status", "draft")
+                                apiPost(baseUrl, token, "/native/teams/plans/create", body)
+                                showCreatePlanDialog = false
+                                newPlanTitle = ""
+                                newPlanDetails = ""
+                                loadPlans()
+                            } catch (e: Exception) {
+                                error = e.message
+                            } finally {
+                                busy = false
+                            }
+                        }
+                    }
+                ) { Text("Save Plan") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreatePlanDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
 }
 
+
+
+
+}
+
+private fun parseTasks(arr: org.json.JSONArray?): List<TeamTaskItem> {
+    if (arr == null) return emptyList()
+    return buildList {
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            add(
+                TeamTaskItem(
+                    id = o.optString("id"),
+                    title = o.optString("title"),
+                    description = o.optString("description"),
+                    assignedTo = o.optString("assignedTo"),
+                    assignedToName = o.optString("assignedToName"),
+                    priority = o.optString("priority", "medium"),
+                    status = o.optString("status", "todo"),
+                    createdAt = o.optString("createdAt"),
+                )
+            )
+        }
+    }
+}
+
+private fun parsePlans(arr: org.json.JSONArray?): List<TeamPlanItem> {
+    if (arr == null) return emptyList()
+    return buildList {
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            add(
+                TeamPlanItem(
+                    id = o.optString("id"),
+                    title = o.optString("title"),
+                    details = o.optString("details"),
+                    status = o.optString("status", "draft"),
+                    submittedByName = o.optString("submittedByName", "Member"),
+                    createdAt = o.optString("createdAt"),
+                )
+            )
+        }
+    }
+}
 
 private fun parseMemories(arr: org.json.JSONArray?): List<TeamMemoryRow> {
     if (arr == null) return emptyList()

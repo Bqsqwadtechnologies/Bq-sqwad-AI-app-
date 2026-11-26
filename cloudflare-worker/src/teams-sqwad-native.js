@@ -921,7 +921,7 @@ export async function teamsAskAi(user, body, env, billing = {}) {
       "teams/" + teamId + "/projects/" + projectId + "/messages/" + aiId,
       {
         authorUid: "ai",
-        authorName: (body?.mode === "codon" || body?.isCodon) ? "BQ Codon" : "BQ Sqwad AI",
+        authorName: (body?.mode === "codron" || body?.mode === "codon" || body?.isCodon || body?.isCodron) ? "BQ Codron" : "BQ Sqwad AI",
         text: msg,
         attachments: [],
         createdAt: now(),
@@ -1076,7 +1076,7 @@ export async function teamsAskAi(user, body, env, billing = {}) {
     const { runProvider } = await import("./providers.js");
     const result = await runProvider(env, {
       primaryProviderId: "openai",
-      primaryModelId: "gpt-6-luna",
+      primaryModelId: (body?.mode === "codron" || body?.mode === "codon" || body?.isCodon || body?.isCodron) ? "gpt-5.6-luna" : "gpt-6-luna",
       fallbackProviderIds: [],
       fallbackModels: {}
     }, {
@@ -1093,16 +1093,18 @@ export async function teamsAskAi(user, body, env, billing = {}) {
     outputTokens = usage.outputTokens;
     if (inputTokens + outputTokens <= 0) throw new Error("provider_usage_unavailable");
     const actualProvider = String(result.providerId || "openai").toLowerCase();
-    const actualModel = String(result.modelId || "gpt-6-luna");
-    if (actualProvider !== "openai" || actualModel !== "gpt-6-luna") {
+    const expectedModel = (body?.mode === "codron" || body?.mode === "codon" || body?.isCodon || body?.isCodron) ? "gpt-5.6-luna" : "gpt-6-luna";
+    const actualModel = String(result.modelId || expectedModel);
+    if (actualProvider !== "openai" || actualModel !== expectedModel) {
       throw new Error("team_ai_model_mismatch");
     }
     const chatPricingControl = typeof billing.chatPricingControl === "function"
       ? await billing.chatPricingControl(user)
       : { customerClass: "paid" };
+    const targetPricingModel = (body?.mode === "codron" || body?.mode === "codon" || body?.isCodon || body?.isCodron) ? "gpt-5.6-luna" : "gpt-6-luna";
     const pricing = await resolveTokenPricing(
       "openai",
-      "gpt-6-luna",
+      targetPricingModel,
       "chat",
       chatPricingControl
     );
@@ -1285,3 +1287,84 @@ export async function teamsTopupCreditPool(user, body) {
   });
   return { ok: true, amount, balance: newBalance };
 }
+
+
+// ==========================================
+// Team Plan Box Operations (Collaborative Planning & BQ Codron Activation)
+// ==========================================
+
+export async function teamsListPlans(user, query) {
+  const teamId = str(query?.teamId);
+  await requireActiveMember(user, teamId, "viewer");
+  const raw = await firestoreQuery("teams/" + teamId + "/plans");
+  const plans = (Array.isArray(raw) ? raw : []).map((p) => ({
+    id: str(p.id),
+    title: str(p.title),
+    details: str(p.details),
+    status: str(p.status, "draft"),
+    submittedBy: str(p.submittedBy),
+    submittedByName: str(p.submittedByName),
+    approvedBy: str(p.approvedBy),
+    approvedByName: str(p.approvedByName),
+    createdAt: str(p.createdAt),
+    updatedAt: str(p.updatedAt),
+  })).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return { plans };
+}
+
+export async function teamsCreatePlan(user, body) {
+  const teamId = str(body?.teamId);
+  const title = str(body?.title).trim();
+  if (!title) throw new Error("Plan title is required.");
+  const { member } = await requireActiveMember(user, teamId, "member");
+  const planId = "plan_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+  const ts = now();
+  const plan = {
+    id: planId,
+    title,
+    details: str(body?.details).trim(),
+    status: ["draft", "review", "ready", "activated", "completed"].includes(body?.status) ? body.status : "draft",
+    submittedBy: user.uid,
+    submittedByName: member.displayName || "Member",
+    approvedBy: "",
+    approvedByName: "",
+    createdAt: ts,
+    updatedAt: ts,
+  };
+  await firestoreSet("teams/" + teamId + "/plans/" + planId, plan, true);
+  return { ok: true, plan };
+}
+
+export async function teamsUpdatePlan(user, body) {
+  const teamId = str(body?.teamId);
+  const planId = str(body?.planId);
+  if (!planId) throw new Error("Plan ID is required.");
+  const { member } = await requireActiveMember(user, teamId, "member");
+  const updates = {};
+  if (body?.status && ["draft", "review", "ready", "activated", "completed"].includes(body.status)) {
+    updates.status = body.status;
+    if (body.status === "ready" || body.status === "activated") {
+      updates.approvedBy = user.uid;
+      updates.approvedByName = member.displayName || "Member";
+    }
+  }
+  if (body?.title) updates.title = str(body.title).trim();
+  if (body?.details !== undefined) updates.details = str(body.details).trim();
+  updates.updatedAt = now();
+  updates.updatedBy = user.uid;
+
+  await firestoreUpdateAtomic("teams/" + teamId + "/plans/" + planId, (current) => ({
+    ...(current || {}),
+    ...updates,
+  }));
+  return { ok: true, planId, updates };
+}
+
+export async function teamsDeletePlan(user, body) {
+  const teamId = str(body?.teamId);
+  const planId = str(body?.planId);
+  await requireActiveMember(user, teamId, "moderator");
+  await firestoreSet("teams/" + teamId + "/plans/" + planId, { deletedAt: now(), status: "deleted" }, true);
+  return { ok: true, planId };
+}
+

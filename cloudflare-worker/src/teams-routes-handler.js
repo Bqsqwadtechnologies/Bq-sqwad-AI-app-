@@ -1,11 +1,5 @@
 /**
  * Single entry for index.js — returns a Response if path matched, else null.
- *
- * In cloudflare-worker/src/index.js:
- *   import { handleTeamsSqwadRoutes } from "./teams-routes-handler.js";
- * and near the top of the fetch route chain (after auth helpers are in scope):
- *   const teamsResp = await handleTeamsSqwadRoutes(url, request, env, { verifyFirebaseUser, json });
- *   if (teamsResp) return teamsResp;
  */
 import {
   teamsCreate,
@@ -21,6 +15,10 @@ import {
   teamsCreateTask,
   teamsUpdateTask,
   teamsDeleteTask,
+  teamsListPlans,
+  teamsCreatePlan,
+  teamsUpdatePlan,
+  teamsDeletePlan,
   teamsTopupCreditPool,
   teamsLeave,
   teamsListMembers,
@@ -43,6 +41,14 @@ export async function handleTeamsSqwadRoutes(url, request, env, deps) {
 
   async function body() {
     return request.json().catch(() => ({}));
+  }
+
+  function queryParams() {
+    try {
+      return Object.fromEntries(url.searchParams);
+    } catch {
+      return {};
+    }
   }
 
   try {
@@ -70,9 +76,9 @@ export async function handleTeamsSqwadRoutes(url, request, env, deps) {
       const u = await verifyFirebaseUser(request);
       return json(await teamsJoin(u, await body()));
     }
-            if (path === "/native/teams/tasks/list" && (method === "GET" || method === "POST")) {
+    if (path === "/native/teams/tasks/list" && (method === "GET" || method === "POST")) {
       const u = await verifyFirebaseUser(request);
-      const q = method === "GET" ? query(request) : await body();
+      const q = method === "GET" ? queryParams() : await body();
       return json(await teamsListTasks(u, q));
     }
     if (path === "/native/teams/tasks/create" && method === "POST") {
@@ -86,6 +92,23 @@ export async function handleTeamsSqwadRoutes(url, request, env, deps) {
     if (path === "/native/teams/tasks/delete" && method === "POST") {
       const u = await verifyFirebaseUser(request);
       return json(await teamsDeleteTask(u, await body()));
+    }
+    if (path === "/native/teams/plans/list" && (method === "GET" || method === "POST")) {
+      const u = await verifyFirebaseUser(request);
+      const q = method === "GET" ? queryParams() : await body();
+      return json(await teamsListPlans(u, q));
+    }
+    if (path === "/native/teams/plans/create" && method === "POST") {
+      const u = await verifyFirebaseUser(request);
+      return json(await teamsCreatePlan(u, await body()));
+    }
+    if (path === "/native/teams/plans/update" && method === "POST") {
+      const u = await verifyFirebaseUser(request);
+      return json(await teamsUpdatePlan(u, await body()));
+    }
+    if (path === "/native/teams/plans/delete" && method === "POST") {
+      const u = await verifyFirebaseUser(request);
+      return json(await teamsDeletePlan(u, await body()));
     }
     if (path === "/native/teams/credits/topup" && method === "POST") {
       const u = await verifyFirebaseUser(request);
