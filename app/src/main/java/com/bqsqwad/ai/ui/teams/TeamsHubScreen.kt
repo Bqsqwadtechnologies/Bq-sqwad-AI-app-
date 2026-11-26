@@ -221,7 +221,7 @@ fun TeamsHubScreen(
                             ListItem(
                                 headlineContent = { Text(t.name) },
                                 supportingContent = {
-                                    Text("@${t.username} · ${t.myRole ?: ""}${if (t.myStatus == "pending") " · pending" else ""}")
+                                    Text("@${t.username} · ${if (t.myStatus == "pending") "PENDING APPROVAL (Saved)" else (t.myRole ?: "member")}", color = if (t.myStatus == "pending") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                                 },
                                 leadingContent = { Icon(Icons.Default.Groups, contentDescription = null) },
                                 modifier = Modifier.fillMaxWidth(),
@@ -297,7 +297,7 @@ fun TeamsHubScreen(
                                             }
                                         },
                                         enabled = !busy,
-                                    ) { Text(if (t.visibility == "private") "Request" else "Join") }
+                                    ) { Text(if (t.visibility == "private") "Request to Join" else "Join Now") }
                                     TextButton(onClick = { onOpenTeam(t.username) }) { Text("Open") }
                                 }
                             },

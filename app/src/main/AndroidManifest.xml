@@ -77,5 +77,10 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
+            <service
+            android:name=".core.LiveMediaForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="camera|microphone|mediaProjection" />
+
     </application>
 </manifest>

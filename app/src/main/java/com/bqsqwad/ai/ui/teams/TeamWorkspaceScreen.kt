@@ -86,6 +86,10 @@ fun TeamWorkspaceScreen(
     var memoryText by remember { mutableStateOf("") }
     var editingMemoryId by remember { mutableStateOf<String?>(null) }
     var deletingMemory by remember { mutableStateOf<TeamMemoryRow?>(null) }
+    var roleTargetMember by remember { mutableStateOf<TeamMemberRow?>(null) }
+    var showAddMemberDialog by remember { mutableStateOf(false) }
+    var addMemberEmail by remember { mutableStateOf("") }
+    var isAddingMember by remember { mutableStateOf(false) }
     var spendLimitTarget by remember { mutableStateOf<TeamMemberRow?>(null) }
     var spendLimitText by remember { mutableStateOf("") }
     var projects by remember { mutableStateOf<List<TeamProjectRow>>(emptyList()) }
@@ -95,7 +99,7 @@ fun TeamWorkspaceScreen(
     var loading by remember { mutableStateOf(true) }
     var busy by remember { mutableStateOf(false) }
     var aiBusy by remember { mutableStateOf(false) }
-    var aiBillingSource by remember { mutableStateOf("team") }
+    var aiBillingSource by remember { mutableStateOf("personal") }
     var error by remember { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
 
@@ -254,7 +258,21 @@ fun TeamWorkspaceScreen(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Text("Members", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Members", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                        if (memberRole == "owner" || memberRole == "admin" || memberRole == "moderator") {
+                            TextButton(
+                                onClick = { showAddMemberDialog = true; addMemberEmail = "" },
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                            ) {
+                                Text("+ Add", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
                     LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         items(members) { m ->
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -274,8 +292,18 @@ fun TeamWorkspaceScreen(
                                 }
                                 Column {
                                     Text(m.displayName, style = MaterialTheme.typography.bodySmall, maxLines = 1)
-                                    Text(if (m.status == "pending") "Pending approval" else m.role, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    if (m.status == "pending" && (memberRole == "owner" || memberRole == "admin")) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text(if (m.status == "pending") "Pending approval" else m.role.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
+                                        if ((memberRole == "owner" || memberRole == "admin") && m.status == "active" && m.role != "owner") {
+                                            TextButton(
+                                                onClick = { roleTargetMember = m },
+                                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                                            ) {
+                                                Text("Change Role", style = MaterialTheme.typography.labelSmall)
+                                            }
+                                        }
+                                    }
+                                    if (m.status == "pending" && (memberRole == "owner" || memberRole == "admin" || memberRole == "moderator")) {
                                         TextButton(
                                             enabled = !busy,
                                             onClick = {
