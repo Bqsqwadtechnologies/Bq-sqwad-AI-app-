@@ -37,7 +37,7 @@ fun CompleteTruthGuardWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: ()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val settingsPrefs = remember { context.getSharedPreferences("bq_sqwad_ui", android.content.Context.MODE_PRIVATE) }
-    val webSearchEnabled = remember { settingsPrefs.getBoolean("web_search_enabled", true) }
+    var webSearchEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("web_search_enabled", true)) }
     var claim by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var deepResearch by remember { mutableStateOf(false) }
