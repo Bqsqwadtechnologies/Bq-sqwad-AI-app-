@@ -800,7 +800,9 @@ private fun WorkspaceFrame(
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     color = container,
-                    shape = MaterialTheme.shapes.extraLarge
+                    shape = MaterialTheme.shapes.extraLarge,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, scheme.primary.copy(alpha = 0.24f)),
+                    tonalElevation = 2.dp
                 ) {
                     Column(
                         Modifier
