@@ -9,6 +9,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -104,7 +105,12 @@ fun BusinessPlaybookScreen(
             for (i in 0 until playbooks.length()) {
                 val p = playbooks.optJSONObject(i) ?: continue
                 val id = p.optString("id")
-                Card(modifier = Modifier.fillMaxWidth()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.extraLarge,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)),
+                    elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 3.dp)
+                ) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(p.optString("title"), style = MaterialTheme.typography.titleMedium)
                         Text(p.optString("summary"), style = MaterialTheme.typography.bodySmall)
