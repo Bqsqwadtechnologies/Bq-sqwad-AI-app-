@@ -355,17 +355,14 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                 if (listState.layoutInfo.totalItemsCount > 1) listState.animateScrollToItem(1)
             }
         }
-        LaunchedEffect(selectedCategory, filteredCustomerPlans.size, contactOptions.size) {
-            if (selectedCategory != "all" && selectedCategory != "credits" && filteredCustomerPlans.isNotEmpty()) {
-                kotlinx.coroutines.delay(80)
-                val trailingItems = 1 +
-                    (if (contactOptions.isNotEmpty()) 1 + contactOptions.size else 0)
-                val target = catalogCategoryHeaderIndex(
-                    listState.layoutInfo.totalItemsCount,
-                    trailingItems,
-                    filteredCustomerPlans.size
-                )
-                listState.animateScrollToItem(target)
+        // Smooth scrolling is triggered only on initial load for direct sections or explicit category taps,
+        // allowing free bidirectional scrolling without forced lock or snapping up/down.
+        LaunchedEffect(initialSection) {
+            if (initialSection != "all" && initialSection != "credits" && initialSection.isNotBlank()) {
+                kotlinx.coroutines.delay(100)
+                if (listState.layoutInfo.totalItemsCount > 2) {
+                    listState.scrollToItem(0)
+                }
             }
         }
         when{
@@ -929,6 +926,12 @@ private fun LivePlanCard(
             }
             if (isFreePlan) {
                 Text("Included at no cost with your account.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                OutlinedButton(
+                    onClick = onBack,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Continue on Free plan")
+                }
             } else if (plan.paymentChannel == "website" || (!canPurchase && !isContactSales)) {
                 Text(
                     purchaseBlockReason ?: "This option isn't available in the app right now.",

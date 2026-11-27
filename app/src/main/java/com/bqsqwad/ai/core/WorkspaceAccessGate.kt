@@ -49,7 +49,8 @@ data class WorkspaceAccessSnapshot(
                 if (id.isBlank() || module.isBlank()) continue
                 val free = p.optJSONObject("price")?.has("free") == true ||
                     p.optString("productType") == "free" ||
-                    p.optString("paymentChannel") == "free"
+                    p.optString("paymentChannel") == "free" ||
+                    id.contains("free", ignoreCase = true)
                 plans.getOrPut(module) { mutableListOf() }.add(id + if (free) ":free" else ":paid")
             }
             val entitlementIds = mutableSetOf<String>()

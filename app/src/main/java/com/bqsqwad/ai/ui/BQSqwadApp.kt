@@ -1377,7 +1377,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             if (current != null && current !in setOf(
                     Workspace.CHAT, Workspace.SEARCH, Workspace.CAMERA, Workspace.VOICE,
                     Workspace.PERSONAL, Workspace.ORGANIZATION_STUDIO,
-                    Workspace.BUSINESS, Workspace.COMPANION, Workspace.LIFE, Workspace.LEARNING, Workspace.TASKS
+                    Workspace.BUSINESS, Workspace.COMPANION, Workspace.LIFE, Workspace.LEARNING, Workspace.TASKS,
+                    Workspace.TRUTH_GUARD
                 ) && !it.hasVerifiedAccess(current)) {
                 paywallWorkspace = current
                 workspace = null
@@ -1391,7 +1392,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             if (current != null && current !in setOf(
                     Workspace.CHAT, Workspace.SEARCH, Workspace.CAMERA, Workspace.VOICE,
                     Workspace.PERSONAL, Workspace.ORGANIZATION_STUDIO,
-                    Workspace.BUSINESS, Workspace.COMPANION, Workspace.LIFE, Workspace.LEARNING, Workspace.TASKS
+                    Workspace.BUSINESS, Workspace.COMPANION, Workspace.LIFE, Workspace.LEARNING, Workspace.TASKS,
+                    Workspace.TRUTH_GUARD
                 ) && (current != Workspace.DATA_ANALYSIS || dataAnalystIsPlanGated)) {
                 accessRetryWorkspace = current
             }
@@ -1411,7 +1413,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             signInRequired = true
         } else if (selected in setOf(
             Workspace.CHAT, Workspace.SEARCH, Workspace.CAMERA, Workspace.VOICE,
-            Workspace.PERSONAL
+            Workspace.PERSONAL, Workspace.TRUTH_GUARD, Workspace.LIFE, Workspace.LEARNING, Workspace.COMPANION, Workspace.BUSINESS, Workspace.TASKS
         ) || (selected == Workspace.DATA_ANALYSIS && workspaceAccess.planModules["data-analysis"].isNullOrEmpty())) {
             // These destinations are free or credit-metered; entitlement loading
             // must never block opening them or show a plan dialog.

@@ -260,7 +260,12 @@ private fun LifeMathisGateCard(
             }
 
             if (isFree) {
-                OutlinedButton(onClick = onOpenPlans, modifier = Modifier.fillMaxWidth()) { Text("Use free plan") }
+                Button(
+                    onClick = { onAccessGranted(true) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (active) "Current active plan" else "Continue on AI Life Mathis Free")
+                }
             } else {
                 Button(onClick = onOpenPlans, modifier = Modifier.fillMaxWidth()) {
                     Text(if (selectedPeriod == "yearly") "Choose yearly plan" else "Choose monthly plan")

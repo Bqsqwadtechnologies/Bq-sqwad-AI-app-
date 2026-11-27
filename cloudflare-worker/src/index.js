@@ -2706,10 +2706,11 @@ async function ai(request, user, body) {
       frontier_lab: { module: "frontier", ids: new Set(["frontierexplorer", "frontierpro", "frontierenterprise"]) },
       learning_studio: { module: "learning", ids: new Set(["explorer", "learnscholar", "learnfamily", "learnschool"]) }
     }[capabilityName];
-    const [rootEntitlement, planRows, learningSubDoc] = await Promise.all([
+    const [rootEntitlement, planRows, learningSubDoc, lifeMattersSubDoc] = await Promise.all([
       firestoreGet("entitlements/" + user.uid).catch(() => null),
       firestoreQuery("plans", { parent: "entitlements/" + user.uid, limit: 100 }).catch(() => []),
-      capabilityName === "learning_studio" ? firestoreGet("learningSubs/" + user.uid).catch(() => null) : Promise.resolve(null)
+      capabilityName === "learning_studio" ? firestoreGet("learningSubs/" + user.uid).catch(() => null) : Promise.resolve(null),
+      capabilityName === "life_matters" ? firestoreGet("solutionSubs/" + user.uid + "__lifematters").catch(() => null) : Promise.resolve(null)
     ]);
     const now = Date.now();
     const isCurrentPlan = item => {
@@ -2731,6 +2732,16 @@ async function ai(request, user, body) {
     let entitlementPlan = matchingPlans[0]
       ? String(matchingPlans[0].planId || matchingPlans[0].id).trim().toLowerCase()
       : (rootMatches ? rootPlanId : "");
+    if (!entitlementPlan && capabilityName === "life_matters" && lifeMattersSubDoc) {
+      const lmState = String(lifeMattersSubDoc.status || lifeMattersSubDoc.state || "").toLowerCase();
+      const lmExp = lifeMattersSubDoc.expiresAt ? Date.parse(String(lifeMattersSubDoc.expiresAt)) : NaN;
+      const lmNotExp = !lifeMattersSubDoc.expiresAt || (Number.isFinite(lmExp) && lmExp > now);
+      const rawSub = String(lifeMattersSubDoc.planId || lifeMattersSubDoc.id || "").trim().toLowerCase();
+      const mapped = rawSub === "plus" || rawSub === "standard" ? "lmstandard" : rawSub === "pro" || rawSub === "ultimate" ? "lmultimate" : rawSub;
+      if (["active", "trialing", "grace"].includes(lmState) && lmNotExp && planScope.ids.has(mapped)) {
+        entitlementPlan = mapped;
+      }
+    }
     if (!entitlementPlan && capabilityName === "learning_studio" && learningSubDoc) {
       const lState = String(learningSubDoc.status || learningSubDoc.state || "").toLowerCase();
       const lExp = learningSubDoc.expiresAt ? Date.parse(String(learningSubDoc.expiresAt)) : NaN;
@@ -3829,7 +3840,7 @@ export default {
       if (url.pathname === "/admin/business-conversations/export" && request.method === "POST") { const u = await verifyFirebaseUser(request); if (!isSuperAdmin(u, env)) throw Object.assign(new Error("Admin access required"), { httpStatus:403 }); return json(await exportBusinessConversationJsonl({ max: 500 })); }
       if (url.pathname === "/admin/business-vault/export" && request.method === "POST") { const u = await verifyFirebaseUser(request); if (!isSuperAdmin(u, env)) throw Object.assign(new Error("Admin access required"), { httpStatus:403 }); return json(await exportBusinessVaultJsonl({ dbGet: firestoreGet, dbQuery: firestoreQuery, encryptionKey: env.BUSINESS_VAULT_ENCRYPTION_KEY, max: 500 })); }
       if (url.pathname === "/admin/training-candidates/status" && request.method === "POST") { const u = await verifyFirebaseUser(request); if (!isSuperAdmin(u, env)) throw new Error("Admin access required"); const b = await readBody(request); return json(await setTrainingCandidateStatus(String(b.id||""), String(b.status||""), u.uid)); }
-      if (url.pathname === "/native/catalog" && request.method === "GET") {
+      if ((url.pathname === "/native/catalog" || url.pathname === "/catalog/native" || url.pathname === "/catalog") && request.method === "GET") {
         return json(await nativeCatalog());
       }
 
@@ -3917,7 +3928,7 @@ export default {
 
       if (url.pathname === "/entitlements" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
-        const [primary, playRows, canonicalRows, adminPlanTest, websiteTruthGuard] = await Promise.all([
+        const [primary, playRows, canonicalRows, adminPlanTest, websiteTruthGuard, websiteLifeMatters] = await Promise.all([
           firestoreGet("entitlements/" + user.uid),
           firestoreQuery("playEntitlements", {
             filters: [{ field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: user.uid } }],
@@ -3927,7 +3938,8 @@ export default {
           // canonical multi-plan subcollection.
           firestoreQuery("plans", { parent: "entitlements/" + user.uid, limit: 100 }),
           firestoreGet("adminPlanTest/" + user.uid).catch(() => null),
-          firestoreGet("solutionSubs/" + user.uid + "__truthguard").catch(() => null)
+          firestoreGet("solutionSubs/" + user.uid + "__truthguard").catch(() => null),
+          firestoreGet("solutionSubs/" + user.uid + "__lifematters").catch(() => null)
         ]);
         const rows = new Map();
         if (primary) {
@@ -3966,6 +3978,30 @@ export default {
               startsAt: websiteTruthGuard.startedAt || null,
               expiresAt: websiteTruthGuard.expiresAt,
               updatedAt: websiteTruthGuard.updatedAt || null
+            });
+          }
+        }
+        if (websiteLifeMatters && String(websiteLifeMatters.status || "").toLowerCase() === "active") {
+          const expiry = Date.parse(String(websiteLifeMatters.expiresAt || ""));
+          const webPlanId = ({ plus: "lmstandard", pro: "lmultimate", standard: "lmstandard", ultimate: "lmultimate" })[String(websiteLifeMatters.planId || "").toLowerCase()];
+          const existing = webPlanId ? rows.get(webPlanId) : null;
+          const existingExpiry = Date.parse(String(existing?.expiresAt || existing?.endDate || ""));
+          const preserveActivePlay = String(existing?.source || "") === "google_play" &&
+            ["active", "trialing", "grace"].includes(String(existing?.state || existing?.status || "").toLowerCase()) &&
+            Number.isFinite(existingExpiry) && existingExpiry > Date.now();
+          if (webPlanId && Number.isFinite(expiry) && expiry > Date.now() && !preserveActivePlay) {
+            rows.set(webPlanId, {
+              id: webPlanId,
+              planId: webPlanId,
+              productId: "lifematters",
+              product: "AI Life Mathis",
+              module: "life-mathis",
+              state: "active",
+              status: "active",
+              source: "website",
+              startsAt: websiteLifeMatters.startedAt || null,
+              expiresAt: websiteLifeMatters.expiresAt,
+              updatedAt: websiteLifeMatters.updatedAt || null
             });
           }
         }

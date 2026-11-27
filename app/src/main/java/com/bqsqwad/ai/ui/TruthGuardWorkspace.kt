@@ -42,11 +42,14 @@ fun CompleteTruthGuardWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: ()
     var busy by remember { mutableStateOf(false) }
     var deepResearch by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(false) }
-    var showSources by remember { mutableStateOf(true) }
-    var showReliability by remember { mutableStateOf(true) }
-    var conservativeVerdicts by remember { mutableStateOf(true) }
-    var saveHistory by remember { mutableStateOf(true) }
-    var defaultDeepResearch by remember { mutableStateOf(false) }
+    var savingSettings by remember { mutableStateOf(false) }
+    var settingsNotice by remember { mutableStateOf<String?>(null) }
+    val prefs = context.getSharedPreferences("bq_truthguard_settings", android.content.Context.MODE_PRIVATE)
+    var showSources by remember { mutableStateOf(prefs.getBoolean("showSources", true)) }
+    var showReliability by remember { mutableStateOf(prefs.getBoolean("showReliability", true)) }
+    var conservativeVerdicts by remember { mutableStateOf(prefs.getBoolean("conservativeVerdicts", true)) }
+    var saveHistory by remember { mutableStateOf(prefs.getBoolean("saveHistory", true)) }
+    var defaultDeepResearch by remember { mutableStateOf(prefs.getBoolean("defaultDeepResearch", false)) }
     var notice by remember { mutableStateOf<String?>(null) }
     var result by remember { mutableStateOf<JSONObject?>(null) }
     var history by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
@@ -79,6 +82,15 @@ fun CompleteTruthGuardWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: ()
     }
 
     fun saveSettings() {
+        savingSettings = true
+        settingsNotice = null
+        prefs.edit()
+            .putBoolean("showSources", showSources)
+            .putBoolean("showReliability", showReliability)
+            .putBoolean("conservativeVerdicts", conservativeVerdicts)
+            .putBoolean("saveHistory", saveHistory)
+            .putBoolean("defaultDeepResearch", defaultDeepResearch)
+            .apply()
         scope.launch {
             runCatching {
                 WorkspaceApiClient().saveTruthGuardSettings(
@@ -89,8 +101,12 @@ fun CompleteTruthGuardWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: ()
                         .put("saveHistory", saveHistory)
                         .put("defaultDeepResearch", defaultDeepResearch && proOrHigher)
                 )
-            }.onSuccess { notice = "TruthGuard settings saved." }
-                .onFailure { notice = safeUserFacingIssue(it, "TruthGuard settings could not be saved.") }
+            }.onSuccess {
+                settingsNotice = "Settings saved successfully."
+            }.onFailure {
+                settingsNotice = safeUserFacingIssue(it, "Settings saved on device. Server sync pending.")
+            }
+            savingSettings = false
         }
     }
 
@@ -261,7 +277,24 @@ fun CompleteTruthGuardWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: ()
                         TruthGuardToggle("Conservative verdicts", "Use cautious wording for incomplete or conflicting evidence.", conservativeVerdicts) { conservativeVerdicts = it }
                         TruthGuardToggle("Save verification history", "Keep checks in your account history.", saveHistory) { saveHistory = it }
                         TruthGuardToggle("Default to deep sweep", "Start with deep research when your plan supports it.", defaultDeepResearch) { defaultDeepResearch = it }
-                        Button(onClick = ::saveSettings, Modifier.fillMaxWidth()) { Text("Save settings") }
+                        settingsNotice?.let { msg ->
+                            val isErr = msg.contains("pending", ignoreCase = true) || msg.contains("error", ignoreCase = true) || msg.contains("fail", ignoreCase = true)
+                            Text(
+                                text = msg,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (isErr) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        Button(onClick = ::saveSettings, Modifier.fillMaxWidth(), enabled = !savingSettings) {
+                            if (savingSettings) {
+                                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Saving…")
+                            } else {
+                                Text("Save settings")
+                            }
+                        }
                     }
                 }
             }
