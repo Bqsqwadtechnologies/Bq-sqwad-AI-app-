@@ -843,10 +843,10 @@ private fun LivePlanCard(
         "tgteam" -> "TEAM"
         else -> null
     }
-    ElevatedCard(
+    Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = if (plan.popular) 4.dp else 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (plan.popular) 4.dp else 1.dp),
         border = if (plan.popular) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement=Arrangement.spacedBy(7.dp)) {
