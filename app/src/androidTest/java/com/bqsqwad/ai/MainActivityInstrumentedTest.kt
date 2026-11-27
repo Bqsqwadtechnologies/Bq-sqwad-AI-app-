@@ -3,6 +3,7 @@ package com.bqsqwad.ai
 import android.content.Intent
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Test
@@ -31,7 +32,7 @@ class MainActivityInstrumentedTest {
     @Test
     fun sharedTextIntentOpensMainActivityWithoutCrash() {
         val intent = Intent(Intent.ACTION_SEND)
-            .setClassName("com.bqsqwad.ai", "com.bqsqwad.ai.MainActivity")
+            .setClassName(InstrumentationRegistry.getInstrumentation().targetContext.packageName, MainActivity::class.java.name)
             .setType("text/plain")
             .putExtra(Intent.EXTRA_TEXT, "Instrumented share-intent smoke test")
 
@@ -46,7 +47,7 @@ class MainActivityInstrumentedTest {
     @Test
     fun processTextIntentOpensMainActivityWithoutCrash() {
         val intent = Intent(Intent.ACTION_PROCESS_TEXT)
-            .setClassName("com.bqsqwad.ai", "com.bqsqwad.ai.MainActivity")
+            .setClassName(InstrumentationRegistry.getInstrumentation().targetContext.packageName, MainActivity::class.java.name)
             .setType("text/plain")
             .putExtra(Intent.EXTRA_PROCESS_TEXT, "Instrumented selected-text smoke test")
 
@@ -83,7 +84,7 @@ class MainActivityInstrumentedTest {
     @Test
     fun malformedSharedTextExtraDoesNotCrashMainActivity() {
         val intent = Intent(Intent.ACTION_SEND)
-            .setClassName("com.bqsqwad.ai", "com.bqsqwad.ai.MainActivity")
+            .setClassName(InstrumentationRegistry.getInstrumentation().targetContext.packageName, MainActivity::class.java.name)
             .setType("text/plain")
             .putExtra(Intent.EXTRA_TEXT, 12345)
 
@@ -98,7 +99,7 @@ class MainActivityInstrumentedTest {
     @Test
     fun malformedProcessTextExtraDoesNotCrashMainActivity() {
         val intent = Intent(Intent.ACTION_PROCESS_TEXT)
-            .setClassName("com.bqsqwad.ai", "com.bqsqwad.ai.MainActivity")
+            .setClassName(InstrumentationRegistry.getInstrumentation().targetContext.packageName, MainActivity::class.java.name)
             .setType("text/plain")
             .putExtra(Intent.EXTRA_PROCESS_TEXT, 12345)
 
