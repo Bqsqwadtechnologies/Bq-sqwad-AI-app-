@@ -1056,7 +1056,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text("Synchronization Status", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
                                 Text(cloudSyncStatus, style = MaterialTheme.typography.bodySmall)
-                                Text("Storage Bucket: bqsqwadai.appspot.com (Firestore / Cloud Storage)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                                Text("Storage Bucket: bqsqwadai.appspot.com (Secure Cloud Storage)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
                                 Button(
                                     onClick = { accessRefresh++ },
                                     modifier = Modifier.padding(top = 4.dp),
