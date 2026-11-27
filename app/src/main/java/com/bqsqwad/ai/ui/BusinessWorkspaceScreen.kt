@@ -126,8 +126,9 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
             },
             border = androidx.compose.foundation.BorderStroke(
                 1.dp,
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
-            )
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.38f)
+            ),
+            tonalElevation = 2.dp
         ) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 val planContext = data.optJSONObject("planContext") ?: JSONObject()
@@ -173,7 +174,7 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                         "Channels" to "Channels",
                         "Advanced AI" to "AI"
                     ).filter { (target, _) -> target in tabs }.forEach { (target, label) ->
-                        AssistChip(onClick = { tab = target }, label = { Text(label) })
+                        AssistChip(onClick = { tab = target }, label = { Text(label) }, modifier = Modifier.heightIn(min = 48.dp))
                     }
                 }
                 val features = planContext.optJSONArray("features") ?: JSONArray()
