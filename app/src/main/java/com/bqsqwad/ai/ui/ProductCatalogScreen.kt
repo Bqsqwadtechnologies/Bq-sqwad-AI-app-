@@ -183,6 +183,9 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                 } else {
                     offline = false
                     plans = livePlans
+                    if (livePlans.isNotEmpty()) {
+                        error = null
+                    }
                     catalog = parseCatalog(live)
                     features = parseFeatures(live)
                     bindings = parseBindings(live)
@@ -236,11 +239,11 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                     }
                     "catalog_failed" -> {
                         val safe = BrandCopy.checkout(state.message)
-                        if (plans.isEmpty()) error = safe else {
-                            storeNotice = safe
+                        storeNotice = safe
+                        if (plans.isNotEmpty()) {
                             error = null
                         }
-                        loading = false
+                        // Play store errors must never hide the native catalog of plans
                     }
                     "success" -> load()
                 }
@@ -250,21 +253,18 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
         } else onDispose{}
     }
     LaunchedEffect(billing, catalogRefreshNonce) {
-        // Keep the branded loading screen visible until Play's asynchronous product
-        // details query actually finishes. A connected BillingClient alone is not proof
-        // that Google Play has returned prices.
         repeat(30) {
             val manager = billing
             if (manager?.hasCompletedCatalogQuery() == true) {
                 playProducts = manager.availableProducts()
                 if (playProducts.isNotEmpty()) {
-                    if (plans.isNotEmpty()) error = null
-                } else if (plans.isEmpty()) {
-                    error = BrandCopy.checkout(status.ifBlank { "Plans could not be loaded. Please try again." })
+                    storeNotice = null
                 } else {
                     storeNotice = "Checkout is reconnecting. Prices will appear in a moment."
                 }
-                loading = false
+                if (plans.isNotEmpty()) {
+                    error = null
+                }
                 return@LaunchedEffect
             }
             kotlinx.coroutines.delay(400)
@@ -272,10 +272,11 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
         val manager = billing
         playProducts = manager?.availableProducts().orEmpty()
         if (playProducts.isEmpty()) {
-            if (plans.isEmpty()) error = BrandCopy.checkout(status.ifBlank { "Plans could not be loaded. Please try again." })
-            else storeNotice = "Checkout is reconnecting. Prices will appear in a moment."
+            storeNotice = "Checkout is reconnecting. Prices will appear in a moment."
         }
-        loading = false
+        if (plans.isNotEmpty()) {
+            error = null
+        }
     }
     LaunchedEffect(signedIn){load()}
     LaunchedEffect(signedIn) {

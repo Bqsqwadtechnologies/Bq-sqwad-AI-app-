@@ -53,7 +53,7 @@ private data class CompanionMessage(
     val fromUser: Boolean,
     val text: String,
     val isCached: Boolean = false,
-    val assistantName: String = "ChatGPT 6 Luna",
+    val assistantName: String = "AI Companion",
     val timestamp: String = ""
 )
 
@@ -112,7 +112,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
             val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull().orEmpty().trim()
             if (spoken.isNotBlank()) {
                 input = if (input.isBlank()) spoken else input.trimEnd() + " " + spoken
-                notice = "Voice dictation added. Ready to send to ChatGPT 6 Luna."
+                notice = "Voice dictation added. Ready to send."
             }
         }
     }
@@ -121,7 +121,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-                putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to ChatGPT 6 Luna")
+                putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to AI Companion")
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
             }
             runCatching { dictationResultLauncher.launch(intent) }
@@ -231,7 +231,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                                     fromUser = item.optString("role") == "user",
                                     text = item.optString("text"),
                                     isCached = item.optBoolean("cached", false),
-                                    assistantName = item.optString("assistantName").ifBlank { "ChatGPT 6 Luna" }
+                                    assistantName = item.optString("assistantName").ifBlank { "AI Companion" }
                                 )
                             )
                         }
@@ -267,7 +267,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
             runCatching {
                 WorkspaceApiClient().saveCompanionProfile(JSONObject().put("personality", newPersonality))
             }.onSuccess {
-                notice = "ChatGPT 6 Luna tone tuned to '$newPersonality'."
+                notice = "AI Companion tone tuned to '$newPersonality'."
             }.onFailure {
                 notice = safeUserFacingIssue(it, "Could not update personality tone.")
             }
@@ -289,7 +289,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
             }.onSuccess { reply ->
                 val answer = reply.optString("text").ifBlank { reply.optString("answer") }
                 val isCached = reply.optBoolean("cached", false)
-                val assistantName = reply.optString("assistantName").ifBlank { "ChatGPT 6 Luna" }
+                val assistantName = reply.optString("assistantName").ifBlank { "AI Companion" }
                 if (answer.isNotBlank()) {
                     messages.add(
                         CompanionMessage(
@@ -302,7 +302,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                     )
                 }
             }.onFailure {
-                notice = safeUserFacingIssue(it, "ChatGPT 6 Luna response failed. Please retry.")
+                notice = safeUserFacingIssue(it, "AI Companion response failed. Please retry.")
             }
             busy = false
         }
@@ -312,7 +312,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 BqSqwadLoadingIndicator(Modifier.size(44.dp))
-                Text("Initializing ChatGPT 6 Luna…", style = MaterialTheme.typography.bodyMedium)
+                Text("Initializing AI Companion…", style = MaterialTheme.typography.bodyMedium)
             }
         }
         return
@@ -344,7 +344,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                         textAlign = TextAlign.Center
                     )
                     Text(
-                        "An active Companion Plan or Free Mode is required to connect with ChatGPT 6 Luna.",
+                        "An active Companion Plan or Free Mode is required to connect with AI Companion.",
                         style = MaterialTheme.typography.bodyMedium,
                         textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -362,7 +362,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                         onClick = {
                             isRedirectedNoPlan = false
                             currentPlan = catalogPlans.firstOrNull { it.id == "companionfree" }
-                                ?: CompanionPlan("companionfree", "Companion Free", mapOf("Free" to "₦0"), listOf("Caring text conversation", "ChatGPT 6 Luna"), 0, false)
+                                ?: CompanionPlan("companionfree", "Companion Free", mapOf("Free" to "₦0"), listOf("Caring text conversation", "AI Companion"), 0, false)
                             notice = "Switched to Free Mode. Luna is ready."
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -418,7 +418,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                                     shape = RoundedCornerShape(6.dp)
                                 ) {
                                     Text(
-                                        "ChatGPT 6 Luna",
+                                        "AI Companion",
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.Bold,
@@ -624,7 +624,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                                             )
                                         }
                                         Text(
-                                            "ChatGPT 6 Luna is ready to listen, reflect and support your day. Responses are cached to protect tokens, and full memory is available on eligible plans.",
+                                            "AI Companion is ready to listen, reflect and support your day. Responses are cached to protect tokens, and full memory is available on eligible plans.",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -723,7 +723,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                             value = input,
                             onValueChange = { input = it; notice = null },
                             modifier = Modifier.weight(1f),
-                            placeholder = { Text("Talk to ChatGPT 6 Luna…") },
+                            placeholder = { Text("Talk to AI Companion…") },
                             maxLines = 4,
                             shape = RoundedCornerShape(20.dp)
                         )
@@ -734,7 +734,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                                     val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                                         putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                                         putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-                                        putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to ChatGPT 6 Luna")
+                                        putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to AI Companion")
                                     }
                                     runCatching { dictationResultLauncher.launch(intent) }
                                         .onFailure { notice = "Voice dictation is unavailable on this device." }
@@ -784,7 +784,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                         )
                     }
 
-                    // TOOL 1: ChatGPT 6 Luna Engine
+                    // TOOL 1: Companion AI Engine
                     item {
                         Card(
                             shape = RoundedCornerShape(16.dp),
@@ -793,7 +793,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Icon(Icons.Default.Psychology, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                    Text("Tool 1: ChatGPT 6 Luna Engine", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                                    Text("Tool 1: Companion AI Engine", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                                 }
                                 Text(
                                     "Dedicated conversational model configured with emotional intelligence, boundary safety, and token-saving smart caching.",
@@ -860,7 +860,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                                                     WorkspaceApiClient().companionCheckin("Please provide a caring daily reflection prompt for today.", personality)
                                                 }.onSuccess {
                                                     val checkinText = it.optString("text")
-                                                    messages.add(CompanionMessage(fromUser = false, text = checkinText, assistantName = "ChatGPT 6 Luna (Daily Check-in)"))
+                                                    messages.add(CompanionMessage(fromUser = false, text = checkinText, assistantName = "AI Companion (Daily Check-in)"))
                                                     notice = "Daily check-in received."
                                                 }.onFailure {
                                                     notice = safeUserFacingIssue(it, "Check-in failed.")
@@ -1003,7 +1003,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                                     Text("Tool 6: Token-Saving Smart Cache", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                                 }
                                 Text(
-                                    "Repeated questions and common inquiries are automatically retrieved from the high-speed local and cloud cache. This avoids burning unnecessary tokens with ChatGPT 6 Luna while delivering instant answers.",
+                                    "Repeated questions and common inquiries are automatically retrieved from the high-speed local and cloud cache. This avoids burning unnecessary tokens while delivering instant answers.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )

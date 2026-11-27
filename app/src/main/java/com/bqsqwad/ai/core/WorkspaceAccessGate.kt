@@ -63,6 +63,8 @@ data class WorkspaceAccessSnapshot(
                 val expiry = expiresAt.takeIf { it.isNotBlank() }?.let { runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull() }
                 if (expiry != null && expiry <= System.currentTimeMillis()) continue
                 val planId = item.optString("planId")
+                    .ifBlank { item.optString("productId") }
+                    .ifBlank { item.optString("id") }
                 planId.takeIf { it.isNotBlank() }?.let(entitlementIds::add)
                 val module = entitlementModule(item.optString("module"), planId)
                 module.takeIf { it.isNotBlank() }?.let(entitlementModules::add)
@@ -74,16 +76,22 @@ data class WorkspaceAccessSnapshot(
         private fun entitlementModule(rawModule: String, planId: String): String {
             val normalized = rawModule.trim().lowercase()
             if (normalized.isNotBlank() && normalized != "general" && normalized != "default") {
-                return if (normalized == "education") "learning" else normalized
+                return when (normalized) {
+                    "education", "learning-studio" -> "learning"
+                    "business-ai", "biz" -> "business"
+                    "companion-ai" -> "companion"
+                    "truth-guard" -> "truthguard"
+                    "lifemathis", "life" -> "life-mathis"
+                    else -> normalized
+                }
             }
-            return when (planId.trim().lowercase()) {
-                "bizstarter", "bizbasic", "bizstandard", "bizprofessional", "bizbusiness", "bizenterprise",
-                "business_starter", "business_basic", "business_standard", "business_professional", "business_premium" -> "business"
-                "explorer", "learnscholar", "learnfamily", "learnschool", "scholar", "academy", "school" -> "learning"
-                "companionbasic", "companionplus", "companionpremium", "companionultimate",
-                "companion_basic", "companion_plus", "companion_premium", "companion_ultimate" -> "companion"
-                "tgplus", "tgpro", "tgteam" -> "truthguard"
-                "lmstandard", "lmultimate" -> "life-mathis"
+            val pid = planId.trim().lowercase()
+            return when {
+                pid.startsWith("biz") || pid.startsWith("business") -> "business"
+                pid in setOf("explorer", "learnscholar", "learnfamily", "learnschool", "scholar", "academy", "school") -> "learning"
+                pid.startsWith("companion") -> "companion"
+                pid in setOf("tgplus", "tgpro", "tgteam") || pid.startsWith("truthguard") -> "truthguard"
+                pid in setOf("lmstandard", "lmultimate") || pid.startsWith("life") -> "life-mathis"
                 else -> ""
             }
         }

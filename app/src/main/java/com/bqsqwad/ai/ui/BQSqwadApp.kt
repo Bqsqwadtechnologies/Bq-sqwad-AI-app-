@@ -1376,7 +1376,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             val current = workspace
             if (current != null && current !in setOf(
                     Workspace.CHAT, Workspace.SEARCH, Workspace.CAMERA, Workspace.VOICE,
-                    Workspace.PERSONAL, Workspace.ORGANIZATION_STUDIO
+                    Workspace.PERSONAL, Workspace.ORGANIZATION_STUDIO,
+                    Workspace.BUSINESS, Workspace.COMPANION, Workspace.LIFE, Workspace.LEARNING, Workspace.TASKS
                 ) && !it.hasVerifiedAccess(current)) {
                 paywallWorkspace = current
                 workspace = null
@@ -1389,7 +1390,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 workspaceAccess.planModules["data-analysis"].orEmpty().isNotEmpty()
             if (current != null && current !in setOf(
                     Workspace.CHAT, Workspace.SEARCH, Workspace.CAMERA, Workspace.VOICE,
-                    Workspace.PERSONAL, Workspace.ORGANIZATION_STUDIO
+                    Workspace.PERSONAL, Workspace.ORGANIZATION_STUDIO,
+                    Workspace.BUSINESS, Workspace.COMPANION, Workspace.LIFE, Workspace.LEARNING, Workspace.TASKS
                 ) && (current != Workspace.DATA_ANALYSIS || dataAnalystIsPlanGated)) {
                 accessRetryWorkspace = current
             }
@@ -1789,18 +1791,21 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 }
             )
             workspace != null -> {
-                    WorkspaceScreen(
-                        workspace!!,
-                        email,
-                        onBack = { workspace = null },
-                        onLearnMore = { featureInfo = workspace!! },
-                        onPrivacy = { featurePrivacy = workspace!! },
-                        onSettings = { featureSettings = workspace!! },
-                        onOpenAppSettings = { settings = true },
-                        onOpenPlans = { plansInitialSection = when (workspace) { Workspace.BUSINESS -> "business"; Workspace.TRUTH_GUARD -> "truthguard"; else -> "all" }; plans = true },
-                        onOpenCredits = { plansInitialSection = "credits"; plans = true },
-                        onOpenMainChat = { workspace = null }
-                    )
+                    val currentWs = workspace
+                    if (currentWs != null) {
+                        WorkspaceScreen(
+                            currentWs,
+                            email,
+                            onBack = { workspace = null },
+                            onLearnMore = { featureInfo = currentWs },
+                            onPrivacy = { featurePrivacy = currentWs },
+                            onSettings = { featureSettings = currentWs },
+                            onOpenAppSettings = { settings = true },
+                            onOpenPlans = { plansInitialSection = when (currentWs) { Workspace.BUSINESS -> "business"; Workspace.TRUTH_GUARD -> "truthguard"; else -> "all" }; plans = true },
+                            onOpenCredits = { plansInitialSection = "credits"; plans = true },
+                            onOpenMainChat = { workspace = null }
+                        )
+                    }
                 }
             }
                 dailyFeatureAnnouncement?.takeIf { foregroundPushBanner.isNullOrBlank() }?.let { announcement ->
@@ -4809,7 +4814,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                     ModelSelector(
                                         selectedKey = selectedModelKey,
                                         onSelect = { selectedModelKey = it.modelKey },
-                                        onBuyCredits = { }
+                                        onBuyCredits = { plansInitialSection = "credits"; plans = true }
                                     )
                                     if (chatIncludedInPlan) {
                                         Text(

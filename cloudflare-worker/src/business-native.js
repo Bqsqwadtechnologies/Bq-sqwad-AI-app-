@@ -16,13 +16,13 @@ async function getBusinessPlanContext(uid){
     firestoreQuery("plans",{parent:"entitlements/"+uid,limit:100}).catch(()=>[]),
     firestoreGet("planCatalog/config").catch(()=>null)
   ]);
-  const validIds=new Set(["bizstarter","bizbasic","bizstandard","bizprofessional","bizbusiness","bizenterprise","businessenterprise"]);
+  const validIds=new Set(["bizstarter","bizbasic","bizstandard","bizprofessional","bizbusiness","bizenterprise","businessenterprise","business_starter","business_basic","business_standard","business_professional","business_premium","business"]);
   const now=Date.now();
   const isCurrent=item=>{
     const state=String(item?.state||item?.status||"").toLowerCase();
     const expiryValue=item?.expiresAt||item?.endDate||null;
     const expiry=expiryValue?Date.parse(String(expiryValue)):NaN;
-    const planId=String(item?.planId||item?.id||"");
+    const planId=String(item?.planId||item?.productId||item?.id||"");
     const module=String(item?.module||"").trim().toLowerCase();
     return ["active","trialing","grace"].includes(state)&&
       (!expiryValue||(Number.isFinite(expiry)&&expiry>now))&&
