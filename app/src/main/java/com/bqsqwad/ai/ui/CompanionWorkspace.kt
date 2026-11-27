@@ -388,8 +388,9 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp),
-            tonalElevation = 2.dp,
-            color = MaterialTheme.colorScheme.surface
+            tonalElevation = 3.dp,
+            color = MaterialTheme.colorScheme.surface,
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.22f))
         ) {
             Column(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
