@@ -4814,7 +4814,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                     ModelSelector(
                                         selectedKey = selectedModelKey,
                                         onSelect = { selectedModelKey = it.modelKey },
-                                        onBuyCredits = { plansInitialSection = "credits"; plans = true }
+                                        onBuyCredits = { error = "Open Plans from the app menu to purchase credits and unlock this model." }
                                     )
                                     if (chatIncludedInPlan) {
                                         Text(
