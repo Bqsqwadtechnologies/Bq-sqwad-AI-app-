@@ -152,7 +152,8 @@ fun LifeMathisPlanGate(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
-        tonalElevation = 4.dp
+        tonalElevation = 4.dp,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.24f))
     ) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Life Mathis plans", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
