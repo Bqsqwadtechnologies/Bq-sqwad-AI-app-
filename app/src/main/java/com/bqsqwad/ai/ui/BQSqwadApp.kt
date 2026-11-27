@@ -1508,7 +1508,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                             modifier = Modifier.padding(horizontal = 10.dp),
                             shape = RoundedCornerShape(14.dp),
                                 label = {
-                                    Column(Modifier.weight(1f, fill = false)) {
+                                    Column {
                                         Text(historyItem.title, maxLines = 1, style = MaterialTheme.typography.bodyMedium)
                                         Text(historyItem.messageCount.toString() + " messages", maxLines = 1, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
