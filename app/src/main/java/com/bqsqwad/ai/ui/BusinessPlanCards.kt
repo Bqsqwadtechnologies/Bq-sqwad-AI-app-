@@ -3,6 +3,7 @@ package com.bqsqwad.ai.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -85,7 +86,7 @@ fun BusinessPlanCards(
                     plan.bullets.forEach { b ->
                         Text("• $b", style = MaterialTheme.typography.bodySmall)
                     }
-                    TextButton(onClick = { onSelect(plan) }) {
+                    TextButton(modifier = Modifier.heightIn(min = 48.dp), onClick = { onSelect(plan) }) {
                         Text(if (active) "Included in your plan" else if (plan.id == "contact_sales") "Contact sales" else "View plan")
                     }
                 }
