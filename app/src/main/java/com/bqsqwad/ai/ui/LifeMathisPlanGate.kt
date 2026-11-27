@@ -55,16 +55,16 @@ fun LifeMathisPlanGate(
             loading = true
             runCatching {
                 val api = WorkspaceApiClient()
-                val coreData = withTimeoutOrNull(8_000L) {
+                val coreData = withTimeoutOrNull(15_000L) {
                     coroutineScope {
-                        val catalogTask = async { api.nativeCatalog() }
-                        val entitlementTask = async { api.entitlements() }
+                        val catalogTask = async { runCatching { api.nativeCatalog() }.getOrDefault(JSONObject()) }
+                        val entitlementTask = async { runCatching { api.entitlements() }.getOrDefault(JSONObject()) }
                         val adminTask = async {
                             runCatching { api.adminAccess().optBoolean("allowed", false) }.getOrDefault(false)
                         }
                         Triple(catalogTask.await(), entitlementTask.await(), adminTask.await())
                     }
-                } ?: throw IllegalStateException("Plan verification timed out. Please retry.")
+                } ?: Triple(JSONObject(), JSONObject(), false)
                 val (catalog, entitlementResponse, serverAdmin) = coreData
                 val planArray = catalog.optJSONArray("plans") ?: JSONArray()
                 val parsed = mutableListOf<LifeMathisGatePlan>()

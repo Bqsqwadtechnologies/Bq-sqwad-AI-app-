@@ -273,31 +273,39 @@ fun TeamsHubScreen(
                             },
                             trailingContent = {
                                 Row {
-                                    TextButton(
-                                        onClick = {
-                                            scope.launch {
-                                                busy = true
-                                                try {
-                                                    val token = authTokenProvider() ?: error("Sign in required")
-                                                    val res = apiPost(
-                                                        baseUrl, token, "/native/teams/join",
-                                                        JSONObject().put("teamId", t.id),
-                                                    )
-                                                    if (res.optBoolean("pending")) {
-                                                        error = "Join request sent."
-                                                    } else {
-                                                        onOpenTeam(t.username)
+                                    val alreadyJoined = mine.any { it.id == t.id || it.username.equals(t.username, ignoreCase = true) }
+                                    if (alreadyJoined) {
+                                        FilledTonalButton(
+                                            onClick = { onOpenTeam(t.username) },
+                                            enabled = !busy,
+                                        ) { Text("Joined", fontWeight = FontWeight.SemiBold) }
+                                    } else {
+                                        TextButton(
+                                            onClick = {
+                                                scope.launch {
+                                                    busy = true
+                                                    try {
+                                                        val token = authTokenProvider() ?: error("Sign in required")
+                                                        val res = apiPost(
+                                                            baseUrl, token, "/native/teams/join",
+                                                            JSONObject().put("teamId", t.id),
+                                                        )
+                                                        if (res.optBoolean("pending")) {
+                                                            error = "Join request sent."
+                                                        } else {
+                                                            onOpenTeam(t.username)
+                                                        }
+                                                        load()
+                                                    } catch (e: Exception) {
+                                                        error = e.message
+                                                    } finally {
+                                                        busy = false
                                                     }
-                                                    load()
-                                                } catch (e: Exception) {
-                                                    error = e.message
-                                                } finally {
-                                                    busy = false
                                                 }
-                                            }
-                                        },
-                                        enabled = !busy,
-                                    ) { Text(if (t.visibility == "private") "Request to Join" else "Join Now") }
+                                            },
+                                            enabled = !busy,
+                                        ) { Text(if (t.visibility == "private") "Request to Join" else "Join Now") }
+                                    }
                                     TextButton(onClick = { onOpenTeam(t.username) }) { Text("Open") }
                                 }
                             },

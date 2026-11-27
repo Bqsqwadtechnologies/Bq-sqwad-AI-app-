@@ -218,7 +218,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                     error = safeUserFacingIssue(t, "Could not load plans. Please retry.")
                 }
             } finally {
-                if (billing?.hasCompletedCatalogQuery() == true) loading = false
+                loading = false
             }
         }
     }

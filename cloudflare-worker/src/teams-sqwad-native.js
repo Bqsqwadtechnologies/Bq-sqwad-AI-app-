@@ -56,13 +56,11 @@ async function firestoreUpdateAtomic(path, mutate, attempts = 6) {
     const next = mutate(current);
     if (next === null) return false;
     try {
-      await firestoreCommit({
-        writes: [{
-          path,
-          data: next,
-          ...(current?.__updateTime ? { updateTime: current.__updateTime } : { create: true }),
-        }],
-      });
+      await firestoreCommit([{
+        path,
+        data: next,
+        ...(current?.__updateTime ? { updateTime: current.__updateTime } : { create: true }),
+      }]);
       return true;
     } catch (error) {
       const message = String(error?.message || error);
@@ -356,6 +354,12 @@ export async function teamsSearch(user, body) {
   if (q) {
     const exact = await getTeamByUsername(q);
     if (exact) {
+      if (exact.visibility === "private") {
+        const membership = user?.uid ? await getMember(exact.id, user.uid) : null;
+        if (!membership || membership.status !== "active") {
+          return { teams: [] };
+        }
+      }
       return {
         teams: [
           {
@@ -831,6 +835,20 @@ export async function teamsListProjects(user, body) {
     .sort((a, b) =>
       (b.lastMessageAt || b.createdAt).localeCompare(a.lastMessageAt || a.createdAt),
     );
+  if (!projects.length) {
+    const generalProject = {
+      id: "general",
+      teamId,
+      name: "General",
+      description: "Default team collaboration channel",
+      createdBy: user.uid,
+      lastMessageAt: null,
+      archived: false,
+      createdAt: now(),
+    };
+    await firestoreCreate("teams/" + teamId + "/projects/general", generalProject).catch(() => {});
+    projects.push(generalProject);
+  }
   return { projects };
 }
 
@@ -1344,6 +1362,12 @@ export async function teamsTopupCreditPool(user, body) {
   const amount = Number(body?.amount);
   if (!Number.isFinite(amount) || amount <= 0) throw new Error("Invalid topup amount.");
   const { team } = await requireActiveMember(user, teamId, "member");
+  const paymentRef = str(body?.paymentReference || body?.purchaseToken);
+  if (!paymentRef) {
+    const err = new Error("Payment verification required to add team credits. Direct unpaid top-ups are disabled.");
+    err.httpStatus = 402;
+    throw err;
+  }
   const ts = now();
   let newBalance = 0;
   await firestoreUpdateAtomic("teamCreditPools/" + team.creditPoolId, (current) => {

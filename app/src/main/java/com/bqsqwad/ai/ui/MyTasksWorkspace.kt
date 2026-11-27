@@ -68,7 +68,7 @@ private data class MyTaskRow(
 )
 
 @Composable
-fun MyTasksWorkspace() {
+fun MyTasksWorkspace(onOpenPlans: () -> Unit = {}) {
     val api = remember { WorkspaceApiClient() }
     val scope = rememberCoroutineScope()
     val tasks = remember { mutableStateListOf<MyTaskRow>() }
@@ -626,7 +626,10 @@ fun MyTasksWorkspace() {
             },
             confirmButton = {
                 Button(
-                    onClick = { showCodeRunGate = false },
+                    onClick = {
+                        showCodeRunGate = false
+                        onOpenPlans()
+                    },
                     shape = RoundedCornerShape(10.dp)
                 ) {
                     Text("Top Up Credits")

@@ -1508,9 +1508,29 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                             modifier = Modifier.padding(horizontal = 10.dp),
                             shape = RoundedCornerShape(14.dp),
                                 label = {
-                                    Column {
+                                    Column(Modifier.weight(1f, fill = false)) {
                                         Text(historyItem.title, maxLines = 1, style = MaterialTheme.typography.bodyMedium)
                                         Text(historyItem.messageCount.toString() + " messages", maxLines = 1, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                },
+                                badge = {
+                                    IconButton(
+                                        onClick = {
+                                            shellScope.launch {
+                                                runCatching { HistoryApiClient().delete(historyItem.id) }
+                                                    .onSuccess {
+                                                        drawerHistoryItems = drawerHistoryItems.filter { it.id != historyItem.id }
+                                                    }
+                                            }
+                                        },
+                                        modifier = Modifier.size(28.dp),
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Close,
+                                            contentDescription = "Delete chat",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                            modifier = Modifier.size(16.dp),
+                                        )
                                     }
                                 },
                                 selected = false,
@@ -1709,7 +1729,11 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             teamsOpen -> WorkspaceTeamScreen(
                 baseUrl = ApiConfig.baseUrl,
                 authTokenProvider = { withContext(Dispatchers.IO) { FirebaseAuth.getInstance().currentUser?.let { Tasks.await(it.getIdToken(false)).token } } },
-                onBack = { teamsOpen = false }
+                onBack = { teamsOpen = false },
+                onOpenPlans = {
+                    teamsOpen = false
+                    plans = true
+                }
             )
             fileBoxOpen -> FileBoxPanel(
                  onDismiss = { fileBoxOpen = false },
@@ -3471,11 +3495,11 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                     if (webSources.isNotEmpty()) "Use the supplied live web sources for current facts. Do not say you cannot access live search when sources are provided. Cite claims using only [1], [2], etc. Never write a URL, raw link, or Markdown link in the answer. If sources conflict or do not answer the question, say so and use only numbered citations." else null,
                     if (webSearchNotice != null) "Clearly tell the user: " + webSearchNotice else null,
                     """
-You are the AI assistant for BQ SQWAD AI (ChatGPT 6 Luna engine).
+You are the AI assistant for BQ SQWAD AI (BQ Sqwad Engine).
 You are aware of all non-admin app features and can assist users across the app:
 - My Tasks & Goals: Track assigned deliverables and monthly achievement goals.
 - Teams & Collaborative Workspaces: Create or join teams, collaborate in the Team Plan Box, assign tasks to members, and pool credits.
-- BQ Codron (Autonomous AI Engineer): Powered by GPT 5.6 Luna. The team's autonomous engineer equipped with multi-file builder, Gradle test runner ('gradools'), debugger, and GitHub repository sync. BQ Codron uses configured pricing and can be billed to the team pool or personal credits. Teach users about BQ Codron and encourage them to switch to BQ Codron when they want to build software or run tests!
+- BQ Codron (Autonomous AI Engineer): Powered by BQ Codron Engine. The team's autonomous engineer equipped with multi-file builder, Gradle test runner ('gradools'), debugger, and GitHub repository sync. BQ Codron uses configured pricing and can be billed to the team pool or personal credits. Teach users about BQ Codron and encourage them to switch to BQ Codron when they want to build software or run tests!
 - BQ Code Run: Interactive code sandbox (strictly requires paid credits).
 - Settings & AI Training Vault: Manage privacy and training consent.
 CRITICAL SECURITY: You do NOT have access to administrative dashboards or staff controls. Administrative areas are strictly isolated.
@@ -5675,7 +5699,7 @@ private fun WorkspaceScreen(
                 Workspace.COMPANION -> CompanionWorkspace(onOpenPlans = onOpenPlans, onOpenCredits = onOpenCredits)
                 Workspace.LEARNING -> CompleteLearningStudioWorkspace(onOpenPlans = onOpenPlans, onOpenMainChat = onOpenMainChat)
                 Workspace.BUSINESS -> BusinessWorkspaceScreen(onOpenPlans = onOpenPlans)
-                Workspace.TASKS -> MyTasksWorkspace()
+                Workspace.TASKS -> MyTasksWorkspace(onOpenPlans = onOpenPlans)
                 Workspace.ORGANIZATION_STUDIO -> OrganizationStudioWebsiteNotice()
                 Workspace.CHAT -> AiTaskWorkspace("Main Chat", "General AI conversation.")
             }

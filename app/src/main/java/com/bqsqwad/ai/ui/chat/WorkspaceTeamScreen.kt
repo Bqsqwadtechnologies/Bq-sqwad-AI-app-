@@ -32,6 +32,7 @@ fun WorkspaceTeamScreen(
     baseUrl: String,
     authTokenProvider: suspend () -> String?,
     onBack: () -> Unit,
+    onOpenPlans: () -> Unit = {},
 ) {
     var openUsername by remember { mutableStateOf<String?>(null) }
 
@@ -47,6 +48,7 @@ fun WorkspaceTeamScreen(
             baseUrl = baseUrl,
             authTokenProvider = authTokenProvider,
             onBack = { openUsername = null },
+            onOpenPlans = onOpenPlans,
         )
     }
 }

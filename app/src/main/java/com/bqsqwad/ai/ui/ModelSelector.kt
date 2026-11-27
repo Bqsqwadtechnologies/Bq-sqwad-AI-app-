@@ -83,15 +83,15 @@ fun ModelSelector(
                 }.sortedBy { it.sortOrder }
             }.getOrElse {
                 listOf(
-                    PublicModelUi("bq-7-star", "BQ-7-Star", "star-spark", "Fast everyday intelligence", 1, false, null),
-                    PublicModelUi("bq-codron", "BQ-Codron", "code-circuit", "Coding advice · Intelligence · Ultra fast", 2, true, "purchased_credits_required")
+                    PublicModelUi("bq-7-star", "BQ Sqwad Core", "star-spark", "Fast everyday intelligence", 1, false, null),
+                    PublicModelUi("bq-codron", "BQ Codron", "code-circuit", "Coding advice · Intelligence · Ultra fast", 2, true, "purchased_credits_required")
                 )
             }
         }
     }
 
     val selected = models.firstOrNull { it.modelKey == selectedKey } ?: models.firstOrNull()
-        ?: PublicModelUi("bq-7-star", "BQ-7-Star", "star-spark", "Fast everyday intelligence", 1, false, null)
+        ?: PublicModelUi("bq-7-star", "BQ Sqwad Core", "star-spark", "Fast everyday intelligence", 1, false, null)
 
     Surface(
         modifier = modifier.clickable { open = true },

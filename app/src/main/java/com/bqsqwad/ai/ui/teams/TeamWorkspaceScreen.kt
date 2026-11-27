@@ -103,6 +103,7 @@ fun TeamWorkspaceScreen(
     baseUrl: String,
     authTokenProvider: suspend () -> String?,
     onBack: () -> Unit,
+    onOpenPlans: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val screenWidthDp = LocalConfiguration.current.screenWidthDp
@@ -155,7 +156,7 @@ fun TeamWorkspaceScreen(
     var codonPrompt by remember { mutableStateOf("") }
     var codonAction by remember { mutableStateOf("build") }
     var codonLogs by remember { mutableStateOf(listOf(
-        "[BQ Codron] Autonomous Software Engineering Engine Initialized (Powered by GPT 5.6 Luna).",
+        "[BQ Codron] Autonomous Software Engineering Engine Initialized (Powered by BQ Codron Engine).",
         "[BQ Codron] Gradle & Build Runner ('gradools') ready.",
         "[BQ Codron] GitHub / Repository connector status: Connected & verified.",
         "[BQ Codron] Ready to generate full applications, execute test suites, and debug errors."
@@ -311,13 +312,14 @@ fun TeamWorkspaceScreen(
             return@Scaffold
         }
 
+        val isTablet = screenWidthDp >= 600
         Row(Modifier.fillMaxSize().padding(padding)) {
-            // Side panel (members + projects) — compact on phone
-            Column(
-                Modifier
-                    .then(if (showTeamDetails) Modifier.width(180.dp).fillMaxHeight().padding(8.dp) else Modifier.width(0.dp)),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
+            if (isTablet && showTeamDetails) {
+                // Side panel (members + projects) on wide screens
+                Column(
+                    Modifier.width(220.dp).fillMaxHeight().padding(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                 if (!isActive) {
                     Text(
                         if (memberStatus == "pending") "Join request pending."
@@ -481,6 +483,7 @@ fun TeamWorkspaceScreen(
                     }
                 }
             }
+            }
 
             // Main Workspace View
             Column(Modifier.weight(1f).fillMaxHeight()) {
@@ -494,7 +497,7 @@ fun TeamWorkspaceScreen(
                         )
                     }
                 } else {
-                    TabRow(selectedTabIndex = selectedTab) {
+                    ScrollableTabRow(selectedTabIndex = selectedTab, edgePadding = 12.dp, modifier = Modifier.fillMaxWidth()) {
                         Tab(
                             selected = selectedTab == 0,
                             onClick = { selectedTab = 0 },
@@ -866,7 +869,7 @@ fun TeamWorkspaceScreen(
                                                         }
                                                         selectedTab = 3
                                                         codonPrompt = "[EXECUTING APPROVED TEAM PLAN: ${p.title}]\nSpecifications:\n${p.details}\n\nTask: Generate production code and run Gradle test suites."
-                                                        codonLogs = codonLogs + listOf(">>> [Plan Box Activation] Team plan '${p.title}' dispatched to BQ Codron (GPT 5.6 Luna).")
+                                                        codonLogs = codonLogs + listOf(">>> [Plan Box Activation] Team plan '${p.title}' dispatched to BQ Codron (BQ Codron Engine).")
                                                     }
                                                 ) {
                                                     Text("Activate BQ Codron", fontWeight = FontWeight.Bold)
@@ -968,7 +971,7 @@ fun TeamWorkspaceScreen(
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                     Column {
                                         Text("⚡ BQ Codron — Autonomous Engineer", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-Text("Powered by GPT 5.6 Luna", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+Text("Powered by BQ Codron Engine", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         Text("Full-stack builder, Gradle & test runner ('gradools'), and repository sync.", style = MaterialTheme.typography.bodySmall)
                                     }
                                     TextButton(onClick = { showTopupDialog = true }) {
@@ -1231,26 +1234,12 @@ Text("Powered by GPT 5.6 Luna", style = MaterialTheme.typography.bodySmall, colo
             },
             confirmButton = {
                 Button(
-                    enabled = !topupBusy,
                     onClick = {
-                        val tid = teamId ?: return@Button
-                        scope.launch {
-                            topupBusy = true
-                            try {
-                                val token = authTokenProvider() ?: error("Sign in required")
-                                val res = apiPost(baseUrl, token, "/native/teams/credits/topup", JSONObject().put("teamId", tid).put("amount", topupAmount))
-                                balance = res.optDouble("balance", balance + topupAmount)
-                                showTopupDialog = false
-                            } catch (e: Exception) {
-                                error = e.message
-                            } finally {
-                                topupBusy = false
-                            }
-                        }
+                        showTopupDialog = false
+                        onOpenPlans()
                     }
                 ) {
-                    if (topupBusy) CircularProgressIndicator(modifier = Modifier.size(16.dp), color = MaterialTheme.colorScheme.onPrimary)
-                    else Text("Buy $topupAmount Credits")
+                    Text("Buy Credits via Store")
                 }
             },
             dismissButton = {

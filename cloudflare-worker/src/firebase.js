@@ -389,8 +389,9 @@ export async function firestoreCreate(path, data) {
 }
 
 export function buildFirestoreCommitBody(writes, documentName) {
+  const writeList = Array.isArray(writes) ? writes : (writes?.writes || []);
   return {
-    writes: writes.map(write => {
+    writes: writeList.map(write => {
       const fields = Object.fromEntries(
         Object.entries(write.data || {}).map(([key, value]) => [key, encodeValue(value)])
       );
@@ -440,9 +441,17 @@ export async function firestoreQuery(collection, {
   offset = 0
 } = {}) {
   const project = encodeURIComponent(projectId());
-  const parentPath = parent ? "/" + parent.split("/").map(encodeURIComponent).join("/") : "";
+  let targetCollection = collection;
+  let targetParent = parent;
+  if (typeof targetCollection === "string" && targetCollection.includes("/")) {
+    const parts = targetCollection.split("/").filter(Boolean);
+    targetCollection = parts.pop();
+    const subParent = parts.join("/");
+    targetParent = targetParent ? targetParent + "/" + subParent : subParent;
+  }
+  const parentPath = targetParent ? "/" + targetParent.split("/").map(encodeURIComponent).join("/") : "";
   const url = FIRESTORE_BASE + "/projects/" + project + "/databases/(default)/documents" + parentPath + ":runQuery";
-  const from = [{ collectionId: collection }];
+  const from = [{ collectionId: targetCollection }];
   const structuredQuery = { from };
   if (filters.length) {
     structuredQuery.where = filters.length === 1

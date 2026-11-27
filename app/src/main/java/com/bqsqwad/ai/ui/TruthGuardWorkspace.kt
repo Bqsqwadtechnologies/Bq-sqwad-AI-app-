@@ -101,8 +101,9 @@ fun CompleteTruthGuardWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: ()
             return
         }
         if (!webSearchEnabled) {
-            notice = "Turn on Web Search in Settings to verify claims against current sources."
-            return
+            webSearchEnabled = true
+            context.getSharedPreferences("bq_sqwad_ui", android.content.Context.MODE_PRIVATE)
+                .edit().putBoolean("web_search_enabled", true).apply()
         }
         if (deepResearch && !proOrHigher) {
             notice = "Deep Evidence Sweep requires TruthGuard Pro or Team."
