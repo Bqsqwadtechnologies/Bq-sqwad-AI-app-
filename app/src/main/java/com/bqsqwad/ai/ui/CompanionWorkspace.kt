@@ -231,7 +231,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                                     fromUser = item.optString("role") == "user",
                                     text = item.optString("text"),
                                     isCached = item.optBoolean("cached", false),
-                                    assistantName = item.optString("assistantName").ifBlank { "Goodshina" }
+                                    assistantName = "Goodshina"
                                 )
                             )
                         }
@@ -300,6 +300,8 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                             timestamp = timeFormatter.format(Date())
                         )
                     )
+                } else {
+                    notice = "Goodshina returned an empty response. Please try again."
                 }
             }.onFailure {
                 notice = safeUserFacingIssue(it, "AI Companion response failed. Please retry.")
