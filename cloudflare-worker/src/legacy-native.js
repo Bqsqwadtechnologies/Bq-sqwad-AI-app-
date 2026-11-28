@@ -200,7 +200,7 @@ export async function companionChat(env,user,b,charge,commit,reverse){
         creditsCharged: 0,
         cached: true,
         modelId: "gpt-6-luna",
-        assistantName: "ChatGPT 6 Luna"
+        assistantName: "Goodshina"
       };
     }
   }
@@ -215,12 +215,13 @@ export async function companionChat(env,user,b,charge,commit,reverse){
     history.sort((x,y)=>String(x.createdAt||"").localeCompare(String(y.createdAt||"")));
     const memory=p.memoryEnabled===false?"":history.map(x=>String(x.role||"user")+": "+clean(x.text,1000)).join("\n");
     const z=await runProvider(env,{primaryProviderId:"openai",primaryModelId:"gpt-6-luna",fallbackProviderIds:[]},{message:m,system:["You are Goodshina, the named AI companion inside BQ SQWAD AI. You are powered by BQ SQWAD AI.",workspaceScopeSystemPrompt("companion"),"Be warm, supportive, respectful and concise.","Do not claim to be human or a real-world person.","Respect the user's boundaries and do not pressure them.","Personality: "+personality,memory?"Conversation memory:\n"+memory:""].filter(Boolean).join("\n")});
+    const replyText=String(z.text||"").trim();if(!replyText)throw new Error("Goodshina returned an empty response.");
     if(settings.saveHistory!==false){
       await firestoreCreate("companionMessages/"+crypto.randomUUID(),{uid:user.uid,role:"user",text:m,createdAt:new Date()});
-      await firestoreCreate("companionMessages/"+crypto.randomUUID(),{uid:user.uid,role:"assistant",text:z.text||"",createdAt:new Date(),providerId:z.providerId||null,modelId:"gpt-6-luna",assistantName:"Goodshina"});
+      await firestoreCreate("companionMessages/"+crypto.randomUUID(),{uid:user.uid,role:"assistant",text:replyText,createdAt:new Date(),providerId:z.providerId||null,modelId:"gpt-6-luna",assistantName:"Goodshina"});
     }
     await commit(user.uid,r.reservationId,z.providerId||"companion");
-    return {ok:true,text:z.text||"",answer:z.text||"",creditsCharged:r.amount||0,cached:false,modelId:"gpt-6-luna",assistantName:"ChatGPT 6 Luna"};
+    return {ok:true,text:replyText,answer:replyText,creditsCharged:r.amount||0,cached:false,modelId:"gpt-6-luna",assistantName:"Goodshina"};
   }catch(e){await reverse(user.uid,r.reservationId);throw e}
 }
 export async function companionCheckins(uid){const a=await firestoreQuery("companionCheckins",{filters:[{field:{fieldPath:"uid"},op:"EQUAL",value:{stringValue:uid}}],limit:60});a.sort((x,y)=>String(y.createdAt||"").localeCompare(String(x.createdAt||"")));return {ok:true,items:a.map(x=>({id:String(x.__name||"").split("/").pop(),...x}))}}
@@ -277,13 +278,9 @@ export async function learningSession(env,user,b,charge,commit,reverse){const go
         "Plan: " + plan
       ].join("\n")
     });
-  } catch (providerError) {
-    console.warn("learning_studio_provider_fallback:", providerError?.message);
-    const subjectClean = clean(b.subject || "General", 80);
-    const fallbackText = "### Lesson: " + goal + "\n\n**Subject:** " + subjectClean + " • **Mode:** " + mode + "\n\n1. **Core Concept:** " + goal + " establishes essential foundational understanding in " + subjectClean + ".\n2. **Methodical Steps:** Break the problem down into components and practice standard principles.\n3. **Practice Application:** Formulate a scenario or question to apply what you have learned.";
-    z = { text: fallbackText, providerId: "learning_studio_cached", modelId: "gpt-6-luna" };
   }
-  const id=crypto.randomUUID();await firestoreCreate("learningSessions/"+id,{uid:user.uid,id,planId:plan,mode,subject:clean(b.subject||"General",80),goal,text:z.text||"",answer:z.text||"",feature:feature||null,status:"completed",providerId:z.providerId||null,modelId:z.modelId||null,createdAt:new Date(),updatedAt:new Date()});await commit(user.uid,r.reservationId,z.providerId||"learning_studio");return {ok:true,id,planId:plan,mode,subject:clean(b.subject||"General",80),text:z.text||"",answer:z.text||"",creditsCharged:r.amount||0}}catch(e){await reverse(user.uid,r.reservationId);throw e}}
+  const answer=String(z.text||"").trim();if(!answer)throw new Error("Learning Studio returned an empty response.");
+  const id=crypto.randomUUID();await firestoreCreate("learningSessions/"+id,{uid:user.uid,id,planId:plan,mode,subject:clean(b.subject||"General",80),goal,text:answer,answer,feature:feature||null,status:"completed",providerId:z.providerId||null,modelId:z.modelId||null,createdAt:new Date(),updatedAt:new Date()});await commit(user.uid,r.reservationId,z.providerId||"learning_studio");return {ok:true,id,planId:plan,mode,subject:clean(b.subject||"General",80),text:answer,answer,creditsCharged:r.amount||0}}catch(e){await reverse(user.uid,r.reservationId);throw e}}
 
 export async function truthguardCatalog(user,env){const g=await gate(user,env,"truthguardfree"),p=await section("truthguard"),s=await firestoreGet("truthGuardSettings/"+user.uid);return {ok:true,activePlanId:g.planId,adminTestMode:g.adminTestMode,cardVerified:g.cardVerified,settings:s||{showSources:true,showReliability:true,conservativeVerdicts:true,saveHistory:true,defaultDeepResearch:false},plans:p.map(x=>({id:x.id,name:x.name,description:x.description||"",price:x.price||{},features:x.features||[],limits:x.limits||{},basePlans:x.basePlans||[],billingPeriods:x.billingPeriods||[],trialDays:x.trialDays||0,trialEligible:x.trialEligible!==false,playEligible:x.playEligible===true}))}}
 export async function truthguardSettings(uid){return {ok:true,settings:await firestoreGet("truthGuardSettings/"+uid)||{showSources:true,showReliability:true,conservativeVerdicts:true,saveHistory:true,defaultDeepResearch:false}}}
@@ -311,7 +308,7 @@ export async function truthguardCheck(env,user,b,charge,commit,reverse){const cl
       : "**Verdict:** Unverified\n\n**Claim:** " + claim + "\n\nNo definitive public verification source was retrieved for this claim. Further evidence is needed to confirm accuracy.";
     z = { text: summary, providerId: "truthguard_evidence", modelId: "gpt-6-luna" };
   }
-  id=crypto.randomUUID();if(settings.saveHistory!==false){const doc={uid:user.uid,claim,analysis:z.text||"",explanation:z.text||"",sources,depth:deep?"deep":"standard",planId:plan,providerId:z.providerId||null,modelId:z.modelId||null,createdAt:new Date(),updatedAt:new Date()};await Promise.all([firestoreCreate("truthGuardChecks/"+id,doc).catch(()=>null),firestoreCreate("truthguardChecks/"+id,{...doc,sources:JSON.stringify(sources),signals:"[]"}).catch(()=>null)]);}await commit(user.uid,r.reservationId,z.providerId||"truth_guard");return {ok:true,id:settings.saveHistory!==false?id:null,claim,analysis:z.text||"",sources,planId:plan,creditsCharged:r.amount||0}}catch(e){if(usageCounterPath)await releaseTruthGuardMonthlyUsage(usageCounterPath);await reverse(user.uid,r.reservationId);throw e}}
+  const analysis=String(z.text||"").trim();if(!analysis)throw new Error("TruthGuard returned an empty analysis.");const id=crypto.randomUUID();if(settings.saveHistory!==false){const doc={uid:user.uid,claim,analysis,explanation:analysis,sources,depth:deep?"deep":"standard",planId:plan,providerId:z.providerId||null,modelId:z.modelId||null,createdAt:new Date(),updatedAt:new Date()};await Promise.all([firestoreCreate("truthGuardChecks/"+id,doc).catch(()=>null),firestoreCreate("truthguardChecks/"+id,{...doc,sources:JSON.stringify(sources),signals:"[]"}).catch(()=>null)]);}await commit(user.uid,r.reservationId,z.providerId||"truth_guard");return {ok:true,id:settings.saveHistory!==false?id:null,claim,analysis,sources,planId:plan,creditsCharged:r.amount||0}}catch(e){if(usageCounterPath)await releaseTruthGuardMonthlyUsage(usageCounterPath);await reverse(user.uid,r.reservationId);throw e}}
 
 export async function organizationGet(uid){let x=await firestoreGet("organizationWorkspaces/"+uid);if(!x){x={uid,name:"My Organization",description:"",members:[{id:uid,role:"owner",status:"active"}],channels:[],settings:{assistantEnabled:true,sharedMemoryEnabled:false},knowledge:[],createdAt:new Date(),updatedAt:new Date()};await firestoreSet("organizationWorkspaces/"+uid,x,false)}return {exists:true,...x}}
 export async function organizationUpdate(uid,b){const name=clean(b.name,160);if(!name)throw new Error("organization_name_required");await firestoreSet("organizationWorkspaces/"+uid,{name,description:clean(b.description,2000),updatedAt:new Date()},true);return organizationGet(uid)}
