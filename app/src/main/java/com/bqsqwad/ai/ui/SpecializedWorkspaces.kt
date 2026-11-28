@@ -652,7 +652,7 @@ Use the plan context to tailor the experience, but never claim an unavailable to
                     }
                     if (activePlanFeatures.size > 6) Text("+" + (activePlanFeatures.size - 6) + " more plan features", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
                 }
-                OutlinedButton(onClick = onOpenPlans, modifier = Modifier.fillMaxWidth()) { Text("Review plans & billing") }
+                Text("Choose a Life Mathis plan above to open secure Google Play checkout.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
