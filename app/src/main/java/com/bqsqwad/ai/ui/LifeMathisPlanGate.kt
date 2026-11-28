@@ -112,8 +112,8 @@ fun LifeMathisPlanGate(
                     parsed += LifeMathisGatePlan(
                         id = "lmstandard",
                         name = "Standard",
-                        price = mapOf("monthly" to ".99 / mo", "yearly" to "9.99 / yr"),
-                        priceNgn = mapOf("monthly" to "₦15,000 / mo", "yearly" to "₦150,000 / yr"),
+                        price = mapOf("monthly" to ".99 / mo"),
+                        priceNgn = mapOf("monthly" to "₦15,000 / mo"),
                         basePlans = listOf("monthly"),
                         productId = "lmstandard",
                         playEligible = true,
@@ -124,8 +124,8 @@ fun LifeMathisPlanGate(
                     parsed += LifeMathisGatePlan(
                         id = "lmultimate",
                         name = "Ultimate",
-                        price = mapOf("monthly" to "9.99 / mo", "yearly" to "99.99 / yr"),
-                        priceNgn = mapOf("monthly" to "₦45,000 / mo", "yearly" to "₦450,000 / yr"),
+                        price = mapOf("monthly" to "9.99 / mo"),
+                        priceNgn = mapOf("monthly" to "₦45,000 / mo"),
                         basePlans = listOf("monthly"),
                         productId = "lmultimate",
                         playEligible = true,
