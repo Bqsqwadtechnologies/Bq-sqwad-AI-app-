@@ -2122,7 +2122,14 @@ function stripWeeklyFromCatalog(catalog) {
   return { ...catalog, sections };
 }
 
-async function nativeCatalog() {
+let _cachedNativeCatalog = null;
+let _cachedNativeCatalogExp = 0;
+
+async function nativeCatalog(forceFresh = false) {
+  const now = Date.now();
+  if (!forceFresh && _cachedNativeCatalog && now < _cachedNativeCatalogExp) {
+    return _cachedNativeCatalog;
+  }
   // The canonical catalog is bundled with the Worker. A failure in an optional
   // Firestore collection must not blank the customer-facing catalog.
   const catalogWarnings = [];
@@ -6748,7 +6755,7 @@ export default {
 
       if (url.pathname === "/truthguard/catalog" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await truthguardCatalog(u,env)); }
       if (url.pathname === "/truthguard/settings" && request.method === "GET") { const u=await verifyFirebaseUser(request); await capability(u.uid,"truth_guard"); return json(await truthguardSettings(u.uid)); }
-      if (url.pathname === "/truthguard/settings" && request.method === "PUT") { const u=await verifyFirebaseUser(request); await capability(u.uid,"truth_guard"); return json(await saveTruthguardSettings(u.uid,await readBody(request))); }
+      if (url.pathname === "/truthguard/settings" && (request.method === "PUT" || request.method === "POST")) { const u=await verifyFirebaseUser(request); await capability(u.uid,"truth_guard"); return json(await saveTruthguardSettings(u.uid,await readBody(request))); }
       if (url.pathname === "/truthguard/history" && request.method === "GET") { const u=await verifyFirebaseUser(request); await capability(u.uid,"truth_guard"); const catalog=await truthguardCatalog(u,env); const historyLimit=catalog.adminTestMode?100:(String(catalog.activePlanId||"").toLowerCase()==="truthguardfree"?5:100); return json(await truthguardHistory(u.uid,historyLimit)); }
       if (url.pathname === "/truthguard/check" && request.method === "POST") { const u=await verifyFirebaseUser(request); await requireConsent(u.uid); await capability(u.uid,"truth_guard"); const b=await readBody(request); return json(await truthguardCheck(env,u,b,chargeCredits,commitCredits,reverseCredits)); }
 

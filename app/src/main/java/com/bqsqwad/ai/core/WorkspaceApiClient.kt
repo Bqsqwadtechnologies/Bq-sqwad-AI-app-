@@ -68,11 +68,11 @@ class WorkspaceApiClient {
         if (!hasUsableNetwork()) error(connectionUnavailableMessage())
     }
 
-    private suspend fun publicRequest(path:String, method:String="GET"):JSONObject = withContext(Dispatchers.IO) {
+    private suspend fun publicRequest(path:String, method:String="GET", connectTimeoutMs:Int=5000, readTimeoutMs:Int=8000):JSONObject = withContext(Dispatchers.IO) {
         ensureNetworkAvailable()
         val statusAndBody = try {
             val c=(URL(baseUrl+path).openConnection() as HttpURLConnection).apply {
-                requestMethod=method; connectTimeout=4500; readTimeout=6500; doInput=true
+                requestMethod=method; connectTimeout=connectTimeoutMs; readTimeout=readTimeoutMs; doInput=true
             }
             try {
                 val status=c.responseCode
@@ -467,7 +467,7 @@ class WorkspaceApiClient {
 
     suspend fun playCatalog():JSONObject = request("/play/catalog","GET")
 
-    suspend fun nativeCatalog():JSONObject = publicRequest("/native/catalog","GET")
+    suspend fun nativeCatalog():JSONObject = publicRequest("/native/catalog","GET", connectTimeoutMs=10000, readTimeoutMs=20000)
     suspend fun adminAccess():JSONObject = request("/admin/access","GET")
     suspend fun registerNotificationToken(token:String):JSONObject = request("/notifications/token", payload=JSONObject().put("token", token).put("platform", "android"))
     suspend fun unregisterNotificationToken(token:String):JSONObject = request("/notifications/token", "DELETE", JSONObject().put("token", token))

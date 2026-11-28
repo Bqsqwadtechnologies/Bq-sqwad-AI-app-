@@ -145,8 +145,8 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
 
         val coreData = withTimeoutOrNull(8_000L) {
             coroutineScope {
-                val catalogRequest = async { api.companionCatalog() }
-                val entitlementRequest = async { api.entitlements() }
+                val catalogRequest = async { runCatching { api.companionCatalog() }.getOrDefault(JSONObject()) }
+                val entitlementRequest = async { runCatching { api.entitlements() }.getOrDefault(JSONObject()) }
                 catalogRequest.await() to entitlementRequest.await()
             }
         }
@@ -182,7 +182,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
             else -> "companionfree"
         }
 
-        isRedirectedNoPlan = (activeEntitlement == null && !adminTestMode && catalogPlans.none { it.id == "companionfree" })
+        isRedirectedNoPlan = (activeEntitlement == null && !adminTestMode && catalogPlans.isNotEmpty() && catalogPlans.none { it.id == "companionfree" })
         currentPlan = plans.firstOrNull { it.id.equals(activePlanId, ignoreCase = true) } ?: plans.firstOrNull { it.id == "companionfree" }
 
         // Expiring condition: trialing with <= 2 days or grace state

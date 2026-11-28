@@ -49,9 +49,9 @@ internal fun parseBlocks(src: String): List<MdBlock> {
         val trimmed = line.trimStart()
         when {
             MARKDOWN_IMAGE.matchEntire(trimmed) != null -> {
-                val match = MARKDOWN_IMAGE.matchEntire(trimmed)!!
-                val alt = match.groupValues.getOrNull(1).orEmpty()
-                val url = match.groupValues.getOrNull(2).orEmpty()
+                val match = MARKDOWN_IMAGE.matchEntire(trimmed)
+                val alt = match?.groupValues?.getOrNull(1).orEmpty()
+                val url = match?.groupValues?.getOrNull(2).orEmpty()
                 if (url.startsWith("https://", ignoreCase = true)) {
                     out += MdBlock.Image(alt = alt, url = url)
                 } else {

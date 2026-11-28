@@ -93,6 +93,7 @@ data class WorkspaceAccessSnapshot(
                 pid.startsWith("companion") -> "companion"
                 pid in setOf("tgplus", "tgpro", "tgteam") || pid.startsWith("truthguard") -> "truthguard"
                 pid in setOf("lmstandard", "lmultimate") || pid.startsWith("life") -> "life-mathis"
+                pid in setOf("frontierexplorer", "frontierpro", "frontierenterprise") || pid.startsWith("frontier") -> "frontier"
                 else -> ""
             }
         }

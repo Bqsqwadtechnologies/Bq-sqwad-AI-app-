@@ -49,10 +49,13 @@ fun AccountProtectionScreen(onBack: () -> Unit) {
             runCatching { passkeyClient.status() }
                 .onSuccess { json ->
                     val array = json.optJSONArray("items")
-                    passkeys = List(array?.length() ?: 0) { i ->
-                        val item = array!!.getJSONObject(i)
-                        item.optString("id") to item.optString("deviceType", "device")
-                    }
+                    passkeys = if (array != null) {
+                        (0 until array.length()).mapNotNull { i ->
+                            array.optJSONObject(i)?.let { item ->
+                                item.optString("id") to item.optString("deviceType", "device")
+                            }
+                        }
+                    } else emptyList()
                 }
         }
     }

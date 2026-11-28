@@ -75,10 +75,13 @@ fun SecretChatVaultDialog(
             runCatching {
                 val response = api.listSecretChats()
                 val array = response.optJSONArray("chats")
-                List(array?.length() ?: 0) { index ->
-                    val item = array!!.getJSONObject(index)
-                    SecretChatRow(item.optString("id"), item.optString("updatedAt"))
-                }
+                if (array != null) {
+                    (0 until array.length()).mapNotNull { index ->
+                        array.optJSONObject(index)?.let { item ->
+                            SecretChatRow(item.optString("id"), item.optString("updatedAt"))
+                        }
+                    }
+                } else emptyList()
             }.onSuccess { rows = it }
                 .onFailure { error = safeUserFacingIssue(it, "Secret chats could not be loaded.") }
             busy = false

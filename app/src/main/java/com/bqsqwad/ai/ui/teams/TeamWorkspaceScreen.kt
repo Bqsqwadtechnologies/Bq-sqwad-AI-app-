@@ -229,7 +229,7 @@ fun TeamWorkspaceScreen(
                 isActive = memberStatus == "active"
 
                 if (isActive) {
-                    val tid = teamId!!
+                    val tid = teamId ?: return@launch
                     val mems = apiPost(baseUrl, token, "/native/teams/members", JSONObject().put("teamId", tid))
                     members = parseMembers(mems.optJSONArray("members"))
                     val memoryResponse = apiPost(baseUrl, token, "/native/teams/memory", JSONObject().put("teamId", tid))
@@ -258,10 +258,14 @@ fun TeamWorkspaceScreen(
 
     // Lightweight poll for new messages
     LaunchedEffect(teamId, projectId, isActive) {
-        if (!isActive || teamId == null || projectId == null) return@LaunchedEffect
+        val currentTeamId = teamId
+        val currentProjectId = projectId
+        if (!isActive || currentTeamId == null || currentProjectId == null) return@LaunchedEffect
         while (true) {
             kotlinx.coroutines.delay(8_000)
-            refreshMessages(teamId!!, projectId!!)
+            val tId = teamId ?: break
+            val pId = projectId ?: break
+            refreshMessages(tId, pId)
         }
     }
 
@@ -641,8 +645,8 @@ fun TeamWorkspaceScreen(
 
                     HorizontalDivider()
                     Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        if (error != null) {
-                            Text(error!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        error?.let { err ->
+                            Text(err, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             OutlinedTextField(

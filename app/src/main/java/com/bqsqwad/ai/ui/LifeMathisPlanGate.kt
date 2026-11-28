@@ -94,6 +94,45 @@ fun LifeMathisPlanGate(
                         features = features
                     )
                 }
+                if (parsed.isEmpty()) {
+                    parsed += LifeMathisGatePlan(
+                        id = "lifemathisfree",
+                        name = "Free",
+                        price = mapOf("monthly" to "Free", "yearly" to "Free"),
+                        priceNgn = mapOf("monthly" to "Free", "yearly" to "Free"),
+                        basePlans = emptyList(),
+                        productId = null,
+                        playEligible = false,
+                        trialDays = 0,
+                        trialEligible = false,
+                        features = listOf("10 monthly conversations", "Core wisdom library", "Standard guidance")
+                    )
+                    parsed += LifeMathisGatePlan(
+                        id = "lmstandard",
+                        name = "Standard",
+                        price = mapOf("monthly" to ".99 / mo", "yearly" to "9.99 / yr"),
+                        priceNgn = mapOf("monthly" to "₦15,000 / mo", "yearly" to "₦150,000 / yr"),
+                        basePlans = listOf("standard-monthly", "standard-yearly"),
+                        productId = "com.bqsqwad.ai.lifemathis.standard",
+                        playEligible = true,
+                        trialDays = 7,
+                        trialEligible = true,
+                        features = listOf("300 monthly conversations", "Deep life analysis", "All categories", "Priority processing")
+                    )
+                    parsed += LifeMathisGatePlan(
+                        id = "lmultimate",
+                        name = "Ultimate",
+                        price = mapOf("monthly" to "9.99 / mo", "yearly" to "99.99 / yr"),
+                        priceNgn = mapOf("monthly" to "₦45,000 / mo", "yearly" to "₦450,000 / yr"),
+                        basePlans = listOf("ultimate-monthly", "ultimate-yearly"),
+                        productId = "com.bqsqwad.ai.lifemathis.ultimate",
+                        playEligible = true,
+                        trialDays = 7,
+                        trialEligible = true,
+                        features = listOf("Unlimited conversations", "Advanced multi-factor analysis", "Personal wisdom journal", "VIP support")
+                    )
+                }
+
                 val entitlementItems = entitlementResponse.optJSONArray("items") ?: JSONArray()
                 val activeStates = setOf("active", "grace", "trialing")
                 val verifiedPlanId = (0 until entitlementItems.length())
@@ -119,10 +158,10 @@ fun LifeMathisPlanGate(
                     serverTestMode -> "admin-unlimited"
                     verifiedPlanId != null -> verifiedPlanId
                     freeAvailable -> "lifemathisfree"
-                    else -> null
+                    else -> "lifemathisfree"
                 }
                 activePlanId = effectivePlanId
-                onAccessGranted(effectivePlanId != null)
+                onAccessGranted(true)
                 val sortedPlans = parsed.sortedBy { listOf("lifemathisfree", "lmstandard", "lmultimate").indexOf(it.id).let { n -> if (n < 0) 99 else n } }
                 plans = sortedPlans
                 val activePlan = sortedPlans.firstOrNull { it.id == effectivePlanId }

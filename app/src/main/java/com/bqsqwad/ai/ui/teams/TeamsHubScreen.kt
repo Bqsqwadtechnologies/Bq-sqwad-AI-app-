@@ -154,13 +154,13 @@ fun TeamsHubScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            if (error != null) {
+            error?.let { err ->
                 Row(
                     Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(error!!, color = MaterialTheme.colorScheme.error, modifier = Modifier.weight(1f))
+                    Text(err, color = MaterialTheme.colorScheme.error, modifier = Modifier.weight(1f))
                     TextButton(onClick = { load() }) { Text("Retry") }
                 }
             }

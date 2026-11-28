@@ -1378,7 +1378,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                     Workspace.CHAT, Workspace.SEARCH, Workspace.CAMERA, Workspace.VOICE,
                     Workspace.PERSONAL, Workspace.ORGANIZATION_STUDIO,
                     Workspace.BUSINESS, Workspace.COMPANION, Workspace.LIFE, Workspace.LEARNING, Workspace.TASKS,
-                    Workspace.TRUTH_GUARD
+                    Workspace.TRUTH_GUARD, Workspace.FRONTIER_LAB, Workspace.DATA_ANALYSIS
                 ) && !it.hasVerifiedAccess(current)) {
                 paywallWorkspace = current
                 workspace = null
@@ -3515,11 +3515,11 @@ CRITICAL SECURITY: You do NOT have access to administrative dashboards or staff 
                 val reply = if (imageRequest) {
                     withContext(Dispatchers.Main) { statusText = "Generating image…" }
                     val promptText = actualPrompt
-                    val generated = if (imageParts.isNotEmpty()) {
+                    val generated = if (imageParts.isNotEmpty() && !imageParts.first().imageBase64.isNullOrBlank()) {
                         val firstImage = imageParts.first()
                         GenerationApiClient().editImage(
                             prompt = promptText,
-                            imageBase64 = firstImage.imageBase64!!,
+                            imageBase64 = firstImage.imageBase64 ?: "",
                             mimeType = firstImage.mimeType ?: "image/png"
                         )
                     } else {
@@ -7806,7 +7806,7 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
                         } else {
                             val tools = payload.optJSONArray("tools")
                             val names = List(tools?.length() ?: 0) { index ->
-                                val tool = tools!!.optJSONObject(index) ?: JSONObject()
+                                val tool = tools?.optJSONObject(index) ?: JSONObject()
                                 tool.optString("name", tool.optString("slug", "Available tool"))
                             }
                             "connected" to names

@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Bolt
@@ -139,17 +140,18 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
             runCatching { JSONObject(it) }.getOrNull()
         }
         val hasCachedCatalog = cachedSnapshot != null && parsePlans(cachedSnapshot).isNotEmpty()
-        if (cachedSnapshot != null) {
+        if (cachedSnapshot != null && hasCachedCatalog) {
             plans = parsePlans(cachedSnapshot)
             catalog = parseCatalog(cachedSnapshot)
             features = parseFeatures(cachedSnapshot)
             bindings = parseBindings(cachedSnapshot)
             contactOptions = parseContactOptions(cachedSnapshot)
-            offline = hasCachedCatalog
+            offline = true
+            loading = false // Show cached catalog immediately with zero delay
         } else {
             offline = false
+            loading = true
         }
-        loading = true
         scope.launch {
             try {
                 val api=WorkspaceApiClient()
@@ -214,9 +216,10 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                     salesNotice = null
                 }
             } catch(t:Throwable) {
-                if (hasCachedCatalog) {
+                if (plans.isNotEmpty() || hasCachedCatalog) {
                     offline = true
                     error = null
+                    status = "Showing cached catalog. Tap refresh to update."
                 } else {
                     error = safeUserFacingIssue(t, "Could not load plans. Please retry.")
                 }
@@ -342,13 +345,31 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
         }.thenBy { it.name.lowercase(java.util.Locale.ROOT) }
     )
 
-    Scaffold(topBar={
-        TopAppBar(
-            title={Column{Text("Plans & Credits",maxLines=1,fontWeight=FontWeight.Bold);Text("BQ Sqwad AI catalog",style=MaterialTheme.typography.labelSmall)}},
-            navigationIcon={IconButton(onClick=onBack){Icon(Icons.Default.ArrowBack,contentDescription="Back")}},
-            actions={IconButton(onClick={ load() }){Icon(Icons.Default.Refresh,contentDescription="Refresh products")}}
-        )
-    }){padding->
+    val showScrollToTop by remember {
+        derivedStateOf { listState.firstVisibleItemIndex > 1 }
+    }
+
+    Scaffold(
+        topBar={
+            TopAppBar(
+                title={Column{Text("Plans & Credits",maxLines=1,fontWeight=FontWeight.Bold);Text("BQ Sqwad AI catalog",style=MaterialTheme.typography.labelSmall)}},
+                navigationIcon={IconButton(onClick=onBack){Icon(Icons.Default.ArrowBack,contentDescription="Back")}},
+                actions={IconButton(onClick={ load() }){Icon(Icons.Default.Refresh,contentDescription="Refresh products")}}
+            )
+        },
+        floatingActionButton={
+            if (showScrollToTop) {
+                FloatingActionButton(
+                    onClick = { scope.launch { listState.animateScrollToItem(0) } },
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                ) {
+                    Icon(Icons.Default.ExpandLess, contentDescription = "Scroll to top")
+                }
+            }
+        }
+    ){padding->
         LaunchedEffect(initialSection, loading, error) {
             if (!loading && error == null && initialSection.equals("credits", ignoreCase = true)) {
                 kotlinx.coroutines.delay(50)
@@ -366,8 +387,8 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
             }
         }
         when{
-            loading->ProductLoading(Modifier.padding(padding))
-            error!=null->ProductError(Modifier.padding(padding), BrandCopy.checkout(error ?: "Could not load plans. Please retry."), ::load)
+            loading && plans.isEmpty()->ProductLoading(Modifier.padding(padding))
+            error!=null && plans.isEmpty()->ProductError(Modifier.padding(padding), error ?: "Could not load plans. Please retry.", ::load)
             else->LazyColumn(state=listState, modifier=Modifier.fillMaxSize().padding(padding).padding(horizontal=16.dp),contentPadding=PaddingValues(top=16.dp,bottom=32.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
                 storeNotice?.let { notice -> item { Card(Modifier.fillMaxWidth(), colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.secondaryContainer)) { Row(Modifier.padding(12.dp), verticalAlignment=Alignment.CenterVertically) { Text(notice, Modifier.weight(1f), style=MaterialTheme.typography.bodySmall); TextButton(onClick={ storeNotice = null; billing?.refreshCatalog() }) { Text("Retry") } } } }
                 }
@@ -424,12 +445,19 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                                 }, label={Text("Credits")})
                             }
                             item {
-                                FilterChip(selected=selectedCategory=="all", onClick={selectedCategory="all"}, label={Text("All")})
+                                FilterChip(selected=selectedCategory=="all", onClick={
+                                    selectedCategory="all"
+                                    scope.launch { listState.animateScrollToItem(0) }
+                                }, label={Text("All")})
                             }
                             items(categorySpecs, key={it.first}) { category ->
                                 FilterChip(
                                     selected=selectedCategory==category.first,
-                                    onClick={ planSearch = ""; selectedCategory = category.first },
+                                    onClick={
+                                        planSearch = ""
+                                        selectedCategory = category.first
+                                        scope.launch { listState.animateScrollToItem(0) }
+                                    },
                                     colors=FilterChipDefaults.filterChipColors(selectedContainerColor=Color(0xFF1565C0), selectedLabelColor=Color.White),
                                     label={Text(if(category.first=="business") "Business AI" else category.second, maxLines=1)}
                                 )

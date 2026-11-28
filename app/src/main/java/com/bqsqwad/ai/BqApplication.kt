@@ -35,6 +35,35 @@ class BqApplication : Application() {
             override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
             override fun onActivityDestroyed(activity: Activity) = Unit
         })
+        // Report any recorded crash from previous session safely on startup
+        runCatching {
+            val crashFile = File(filesDir, "last_crash.txt")
+            if (crashFile.exists()) {
+                val lines = crashFile.readLines()
+                if (lines.isNotEmpty()) {
+                    val timestamp = lines.firstOrNull() ?: ""
+                    val rawTrace = lines.drop(1).joinToString("
+")
+                    val sanitizedTrace = rawTrace
+                        .replace(Regex("[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}"), "[REDACTED_EMAIL]")
+                        .replace(Regex("(?i)bearer\s+[a-zA-Z0-9_.-]+"), "Bearer [REDACTED]")
+                        .replace(Regex("(?i)apiKey=[a-zA-Z0-9_.-]+"), "apiKey=[REDACTED]")
+                        .take(4000)
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                        runCatching {
+                            val payload = org.json.JSONObject()
+                                .put("type", "crash")
+                                .put("timestamp", timestamp)
+                                .put("trace", sanitizedTrace)
+                                .put("appVersion", "1.0.0")
+                            com.bqsqwad.ai.core.WorkspaceApiClient().reportClientDiagnostic(payload)
+                        }
+                    }
+                }
+                crashFile.delete()
+            }
+        }
+
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->
             runCatching {
