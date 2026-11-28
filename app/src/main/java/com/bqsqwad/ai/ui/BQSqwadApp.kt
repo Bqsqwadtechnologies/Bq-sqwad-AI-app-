@@ -43,7 +43,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -4294,7 +4293,6 @@ CRITICAL SECURITY: You do NOT have access to administrative dashboards or staff 
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(top = 3.dp)
-                                .horizontalScroll(rememberScrollState())
                                 .padding(horizontal = 2.dp, vertical = 0.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(2.dp)
@@ -4679,16 +4677,34 @@ val composerShape = RoundedCornerShape(26.dp)
                             Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(dictationMessage, color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall)
                                 Row(
-                                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                    modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    TextButton(onClick = {
-                                        if (dictationReadyAudio != null) transcribeDictation()
-                                        else speechPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                                    }) { Text(if (dictationReadyAudio != null) "Retry transcription" else "Record again", maxLines = 1, softWrap = false) }
-                                    TextButton(onClick = { startSpeechRecognition() }) { Text("Use phone speech", maxLines = 1, softWrap = false) }
+                                    OutlinedButton(
+                                        onClick = {
+                                            if (dictationReadyAudio != null) transcribeDictation()
+                                            else speechPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
+                                    ) {
+                                        Text(if (dictationReadyAudio != null) "Retry" else "Record", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall)
+                                    }
+                                    OutlinedButton(
+                                        onClick = { startSpeechRecognition() },
+                                        modifier = Modifier.weight(1f),
+                                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
+                                    ) {
+                                        Text("Phone speech", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall)
+                                    }
                                     if (dictationNeedsCredits) {
-                                        Button(onClick = { openCredits() }) { Text("Buy credits", maxLines = 1, softWrap = false) }
+                                        Button(
+                                            onClick = { openCredits() },
+                                            modifier = Modifier.weight(1f),
+                                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
+                                        ) {
+                                            Text("Credits", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall)
+                                        }
                                     }
                                 }
                             }
@@ -4898,57 +4914,114 @@ val composerShape = RoundedCornerShape(26.dp)
             }
         }
         if (showImageActions && selectedImageBase64 != null) {
-            AlertDialog(onDismissRequest = { showImageActions = false }, title = { Text("Image options") }, text = { Text("Open full screen, save or share this image, edit it with instructions, or create another output size.") },
-                confirmButton = { TextButton(onClick = { showImageActions = false; showImageViewer = true }) { Text("Full screen") } },
-                dismissButton = { Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    TextButton(onClick = { runCatching { saveGeneratedImage(context, selectedImageBase64.orEmpty()) }.onSuccess { error = "Image saved to Pictures/BQ Sqwad AI." }.onFailure { error = safeUserFacingIssue(it, "Could not save image. Please try again.") }; showImageActions = false }) { Text("Save") }
-                    TextButton(onClick = { runCatching { shareGeneratedImage(context, selectedImageBase64.orEmpty()) }.onFailure { error = safeUserFacingIssue(it, "Could not share image. Please try again.") }; showImageActions = false }) { Text("Share") }
-                    TextButton(onClick = { imageEditPrompt = ""; showImageActions = false; showImageEdit = true }) { Text("Edit") }
-                    TextButton(onClick = {
-                        val prompt = selectedImagePrompt.ifBlank { "Create a new version of this image" }
-                        val targetId = selectedImageMessageId
-                        showImageActions = false
-                        busy = true
-                        statusText = "Generating image…"
-                        scope.launch(Dispatchers.IO) {
-                            val result = runCatching { GenerationApiClient().generateImage(prompt, modelRegistryId = null) }
-                            val durableUrl = result.getOrNull()?.let { generated ->
-                                generated.url.takeIf { it.startsWith("https://", ignoreCase = true) }
-                                    ?: generated.imageBase64?.let {
-                                        runCatching { uploadGeneratedImage(it) }
-                                            .onFailure { android.util.Log.w("BQImage", "Image service URL unavailable; secure storage fallback failed.") }
-                                            .getOrNull()
-                                    }
+            AlertDialog(
+                onDismissRequest = { showImageActions = false },
+                title = { Text("Image options") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Select an action for this image:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = {
+                                    runCatching { saveGeneratedImage(context, selectedImageBase64.orEmpty()) }
+                                        .onSuccess { error = "Image saved to Pictures/BQ Sqwad AI." }
+                                        .onFailure { error = safeUserFacingIssue(it, "Could not save image. Please try again.") }
+                                    showImageActions = false
+                                },
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Text("Save", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall)
                             }
-                            withContext(Dispatchers.Main) {
-                                result.onSuccess { generated ->
-                                    val index = messages.indexOfFirst { it.id == targetId }
-                                    if (index >= 0) messages[index] = messages[index].copy(
-                                        text = "Image regenerated.", prompt = prompt,
-                                        attachments = generated.imageBase64?.let { listOf(ChatMessageAttachment("Regenerated image.png", "image/png", it)) } ?: emptyList(),
-                                        imageUrl = durableUrl
-                                    )
-                                    selectedImageBase64 = generated.imageBase64
-                                    selectedImageMimeType = "image/png"
-                                    error = if (durableUrl == null) "The image was regenerated, but secure storage is unavailable; it may not appear when you reopen this chat." else null
-                                    if (shouldAutoSaveHistory()) runCatching {
-                                        val snapshot = messages.filterNot { it.id in privateMessageIds }.map { item -> HistoryMessage(item.mine, item.text, item.id, item.prompt, item.attachments.map { it.mimeType + "|" + it.name + (it.imageLocalId?.let { localId -> "|" + localId } ?: "") }, item.imageUrl) }
-                                        withContext(Dispatchers.IO) { HistoryApiClient().save(historyId, prompt, snapshot) }
-                                    }.onSuccess { savedId -> historyId = savedId }
-                                        .onFailure { error = safeUserFacingIssue(it, "The image was regenerated, but this conversation could not be saved.") }
-                                }.onFailure { error = safeUserFacingIssue(it, "BQ Sqwad AI could not regenerate the image. Please try again.") }
-                                runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
-                                    .onSuccess { applyCreditSnapshot(it) }
-                                busy = false
-                                statusText = "Ready"
+                            OutlinedButton(
+                                onClick = {
+                                    runCatching { shareGeneratedImage(context, selectedImageBase64.orEmpty()) }
+                                        .onFailure { error = safeUserFacingIssue(it, "Could not share image. Please try again.") }
+                                    showImageActions = false
+                                },
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Text("Share", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall)
                             }
                         }
-                    }) { Text("Regenerate") }
-                    TextButton(onClick = { showImageActions = false; showImageResize = true }) { Text("Resize") }
-                } }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = { imageEditPrompt = ""; showImageActions = false; showImageEdit = true },
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Text("Edit", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall)
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    val prompt = selectedImagePrompt.ifBlank { "Create a new version of this image" }
+                                    val targetId = selectedImageMessageId
+                                    showImageActions = false
+                                    busy = true
+                                    statusText = "Generating image…"
+                                    scope.launch(Dispatchers.IO) {
+                                        val result = runCatching { GenerationApiClient().generateImage(prompt, modelRegistryId = null) }
+                                        val durableUrl = result.getOrNull()?.let { generated ->
+                                            generated.url.takeIf { it.startsWith("https://", ignoreCase = true) }
+                                                ?: generated.imageBase64?.let {
+                                                    runCatching { uploadGeneratedImage(it) }
+                                                        .onFailure { android.util.Log.w("BQImage", "Image service URL unavailable; secure storage fallback failed.") }
+                                                        .getOrNull()
+                                                }
+                                        }
+                                        withContext(Dispatchers.Main) {
+                                            result.onSuccess { generated ->
+                                                val index = messages.indexOfFirst { it.id == targetId }
+                                                if (index >= 0) messages[index] = messages[index].copy(
+                                                    text = "Image regenerated.", prompt = prompt,
+                                                    attachments = generated.imageBase64?.let { listOf(ChatMessageAttachment("Regenerated image.png", "image/png", it)) } ?: emptyList(),
+                                                    imageUrl = durableUrl
+                                                )
+                                                selectedImageBase64 = generated.imageBase64
+                                                selectedImageMimeType = "image/png"
+                                                error = if (durableUrl == null) "The image was regenerated, but secure storage is unavailable; it may not appear when you reopen this chat." else null
+                                                if (shouldAutoSaveHistory()) runCatching {
+                                                    val snapshot = messages.filterNot { it.id in privateMessageIds }.map { item -> HistoryMessage(item.mine, item.text, item.id, item.prompt, item.attachments.map { it.mimeType + "|" + it.name + (it.imageLocalId?.let { localId -> "|" + localId } ?: "") }, item.imageUrl) }
+                                                    withContext(Dispatchers.IO) { HistoryApiClient().save(historyId, prompt, snapshot) }
+                                                }.onSuccess { savedId -> historyId = savedId }
+                                                    .onFailure { error = safeUserFacingIssue(it, "The image was regenerated, but this conversation could not be saved.") }
+                                            }.onFailure { error = safeUserFacingIssue(it, "BQ Sqwad AI could not regenerate the image. Please try again.") }
+                                            runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
+                                                .onSuccess { applyCreditSnapshot(it) }
+                                            busy = false
+                                            statusText = "Ready"
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Text("Regenerate", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = { showImageActions = false; showImageResize = true },
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Text("Resize", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall)
+                            }
+                            Button(
+                                onClick = { showImageActions = false; showImageViewer = true },
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Text("Full view", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = { showImageActions = false }) { Text("Close") }
+                }
             )
         }
         if (showImageEdit) {
@@ -6562,25 +6635,57 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    OutlinedButton(onClick = toggleFlashlight, enabled = granted) { Text(if (flashlightOn) "Flashlight On" else "Flashlight") }
-                    OutlinedButton(onClick = { smartMode = !smartMode }, enabled = !active && !screenActive) { Text(if (smartMode) "Smart Practice: ON" else "Smart Practice") }
-                    if (active && liveServiceMode == LiveMediaForegroundService.MODE_CAMERA) {
-                        OutlinedButton(onClick = { LiveMediaForegroundService.setMicrophoneMuted(!liveUiState.microphoneMuted) }) {
-                            Text(if (liveUiState.microphoneMuted) "Unmute mic" else "Mute mic")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = toggleFlashlight,
+                            enabled = granted,
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            Text(if (flashlightOn) "Flashlight On" else "Flashlight", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall)
+                        }
+                        OutlinedButton(
+                            onClick = { smartMode = !smartMode },
+                            enabled = !active && !screenActive,
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            Text(if (smartMode) "Practice: ON" else "Practice: OFF", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall)
                         }
                     }
-                    var voiceExpanded by remember { mutableStateOf(false) }
-                    Box {
-                        OutlinedButton(onClick = { voiceExpanded = true }) {
-                            Text("Voice: " + (liveVoices.firstOrNull { it.first == selectedVoice }?.second ?: "Aurora"))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (active && liveServiceMode == LiveMediaForegroundService.MODE_CAMERA) {
+                            OutlinedButton(
+                                onClick = { LiveMediaForegroundService.setMicrophoneMuted(!liveUiState.microphoneMuted) },
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Text(if (liveUiState.microphoneMuted) "Unmute mic" else "Mute mic", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall)
+                            }
                         }
-                        DropdownMenu(expanded = voiceExpanded, onDismissRequest = { voiceExpanded = false }) {
-                            liveVoices.forEach { (id, label) ->
-                                DropdownMenuItem(text = { Text(label) }, onClick = { selectedVoice = id; voiceExpanded = false })
+                        var voiceExpanded by remember { mutableStateOf(false) }
+                        Box(modifier = Modifier.weight(1f)) {
+                            OutlinedButton(
+                                onClick = { voiceExpanded = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Text("Voice: " + (liveVoices.firstOrNull { it.first == selectedVoice }?.second ?: "Aurora"), maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall)
+                            }
+                            DropdownMenu(expanded = voiceExpanded, onDismissRequest = { voiceExpanded = false }) {
+                                liveVoices.forEach { (id, label) ->
+                                    DropdownMenuItem(text = { Text(label) }, onClick = { selectedVoice = id; voiceExpanded = false })
+                                }
                             }
                         }
                     }
@@ -8576,31 +8681,43 @@ item { SettingsSectionTitle("Appearance", "Theme, color and text size") }
             item {
                 SurfaceCard("Chat background", "Choose a picture to display behind Main Chat. It is saved to your BQ account and syncs with the website and Android app. Each successful change uses the configured credit price.")
                 Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Button(enabled = !changingChatBackground, onClick = { chatBackgroundPicker.launch(arrayOf("image/*")) }) {
-                        Icon(Icons.Default.Image, contentDescription = null)
-                        Spacer(Modifier.width(6.dp))
-                        Text(if (changingChatBackground) "Uploading…" else "Choose picture", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelMedium)
+                    Button(
+                        enabled = !changingChatBackground,
+                        onClick = { chatBackgroundPicker.launch(arrayOf("image/*")) },
+                        modifier = if (customChatBackgroundUri != null) Modifier.weight(1f) else Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                    ) {
+                        Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(if (changingChatBackground) "Uploading…" else "Choose picture", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall)
                     }
                     if (customChatBackgroundUri != null) {
-                        OutlinedButton(enabled = !changingChatBackground, onClick = {
-                            changingChatBackground = true
-                            scope.launch {
-                                runCatching { WorkspaceApiClient().clearChatBackground(customChatBackgroundBrightness) }
-                                    .onSuccess {
-                                        chatBackgroundPrefs.edit().remove("chat_background_uri").apply()
-                                        customChatBackgroundUri = null
-                                        customChatBackgroundBrightness = 1f
-                                        chatBackgroundPrefs.edit().putFloat("chat_background_brightness", 1f).apply()
-                                        settingsNotice = "Chat background removed from your account and website."
-                                        (context as? android.app.Activity)?.recreate()
-                                    }
-                                    .onFailure { settingsNotice = safeUserFacingIssue(it, "Could not remove the saved chat background. Please try again.") }
-                                changingChatBackground = false
-                            }
-                        }) { Text("Remove") }
+                        OutlinedButton(
+                            enabled = !changingChatBackground,
+                            onClick = {
+                                changingChatBackground = true
+                                scope.launch {
+                                    runCatching { WorkspaceApiClient().clearChatBackground(customChatBackgroundBrightness) }
+                                        .onSuccess {
+                                            chatBackgroundPrefs.edit().remove("chat_background_uri").apply()
+                                            customChatBackgroundUri = null
+                                            customChatBackgroundBrightness = 1f
+                                            chatBackgroundPrefs.edit().putFloat("chat_background_brightness", 1f).apply()
+                                            settingsNotice = "Chat background removed from your account and website."
+                                            (context as? android.app.Activity)?.recreate()
+                                        }
+                                        .onFailure { settingsNotice = safeUserFacingIssue(it, "Could not remove the saved chat background. Please try again.") }
+                                    changingChatBackground = false
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            Text("Remove", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall)
+                        }
                     }
                 }
                 if (customChatBackgroundUri != null) {

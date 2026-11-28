@@ -6,7 +6,6 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -509,7 +508,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                                     fontWeight=FontWeight.SemiBold
                                 )
                                 Row(
-                                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                    modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     Button(
@@ -520,17 +519,19 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                                                 status = "Your Play subscriptions page opened. Turn off auto-renewal there; your access remains until the paid period ends."
                                             }
                                         },
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                        modifier = Modifier.weight(1f),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
                                     ) {
-                                        Text(if (autoRenew) "Cancel renewal" else "Manage plan", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelMedium)
+                                        Text(if (autoRenew) "Cancel renewal" else "Manage plan", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall)
                                     }
                                     OutlinedButton(
                                         onClick = {
                                             val url = playManagement?.optString("paymentMethodManagementUrl").orEmpty()
                                             if (url.isNotBlank()) context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                                         },
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                                    ) { Text("Payment method", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelMedium) }
+                                        modifier = Modifier.weight(1f),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                                    ) { Text("Payment method", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall) }
                                 }
                                 Text(
                                     if (autoRenew) "Turn off auto-renewal opens the Play subscriptions page. BQ Sqwad AI will refresh your verified access after the change." else "Auto-renewal is currently off. You can manage or resubscribe through the Play subscriptions page. BQ Sqwad AI will refresh your verified access after the change.",
@@ -964,9 +965,10 @@ private fun LivePlanCard(
                 Text("Included at no cost with your account.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                 OutlinedButton(
                     onClick = onContinueFree,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(vertical = 10.dp)
                 ) {
-                    Text("Continue on Free plan")
+                    Text("Continue on Free plan", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelMedium)
                 }
             } else if (plan.paymentChannel == "website" || (!canPurchase && !isContactSales)) {
                 Text(
@@ -1028,15 +1030,19 @@ private fun LivePlanCard(
                     Text(
                         when {
                             isContactSales -> "Contact Sales"
-                            isOneTimeAddOn && canPurchase -> "Buy One-Time Add-on"
+                            isOneTimeAddOn && canPurchase -> "Buy Add-on"
                             canPurchase -> "Get ${plan.name.ifBlank { "Plan" }}"
-                            plan.playEligible && selectedEntry == null -> "Unavailable — product not mapped"
-                            plan.playEligible && selectedProduct == null -> "Unavailable — product missing"
-                            plan.playEligible && !selectedProductHasOffer -> "Unavailable — offer not found"
+                            plan.playEligible && selectedEntry == null -> "Unavailable — not mapped"
+                            plan.playEligible && selectedProduct == null -> "Unavailable — missing"
+                            plan.playEligible && !selectedProductHasOffer -> "Unavailable — no offer"
                             plan.playEligible && billing?.isReady() != true -> "Checkout loading…"
                             plan.paymentChannel == "website" -> "Not available in-app"
                             else -> "Not available in-app"
                         },
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold
                     )
                 }

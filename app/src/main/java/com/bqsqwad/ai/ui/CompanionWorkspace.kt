@@ -14,7 +14,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -602,15 +601,15 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     // Personality Quick Bar
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Tone:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                        listOf("Caring", "Encouraging", "Calm", "Motivational", "Professional").forEach { p ->
+                        item {
+                            Text("Tone:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                        }
+                        items(listOf("Caring", "Encouraging", "Calm", "Motivational", "Professional")) { p ->
                             FilterChip(
                                 selected = personality == p,
                                 onClick = { updatePersonality(p) },
@@ -653,18 +652,16 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                         Text("Quick questions to start:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .horizontalScroll(rememberScrollState()),
+                                        LazyRow(
+                                            modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
-                                            listOf(
+                                            items(listOf(
                                                 "How can I decompress tonight?",
                                                 "Help me plan a productive morning",
                                                 "Give me a positive perspective on today",
                                                 "Help me reflect on a difficult goal"
-                                            ).forEach { prompt ->
+                                            )) { prompt ->
                                                 SuggestionChip(
                                                     onClick = { sendMessageText(prompt) },
                                                     label = { Text(prompt, maxLines = 1) }
@@ -825,9 +822,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .horizontalScroll(rememberScrollState()),
+                                    modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     Button(
@@ -835,11 +830,13 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                                             selectedTab = 0
                                             sendMessageText("Hello Luna, can you introduce your role as my AI companion?")
                                         },
-                                        shape = RoundedCornerShape(10.dp)
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(10.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
                                     ) {
                                         Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
                                         Spacer(Modifier.width(4.dp))
-                                        Text("Ask Intro", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelMedium)
+                                        Text("Ask Intro", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall)
                                     }
                                     OutlinedButton(
                                         onClick = {
@@ -854,11 +851,13 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                                                     }
                                             }
                                         },
-                                        shape = RoundedCornerShape(10.dp)
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(10.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
                                     ) {
                                         Icon(Icons.Default.DeleteOutline, contentDescription = null, modifier = Modifier.size(16.dp))
                                         Spacer(Modifier.width(4.dp))
-                                        Text("Clear History", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelMedium)
+                                        Text("Clear History", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall)
                                     }
                                 }
                             }
@@ -881,35 +880,30 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .horizontalScroll(rememberScrollState()),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Button(
-                                        onClick = {
-                                            selectedTab = 0
-                                            busy = true
-                                            scope.launch {
-                                                runCatching {
-                                                    WorkspaceApiClient().companionCheckin("Please provide a caring daily reflection prompt for today.", personality)
-                                                }.onSuccess {
-                                                    val checkinText = it.optString("text")
-                                                    messages.add(CompanionMessage(fromUser = false, text = checkinText, assistantName = "AI Companion (Daily Check-in)"))
-                                                    notice = "Daily check-in received."
-                                                }.onFailure {
-                                                    notice = safeUserFacingIssue(it, "Check-in failed.")
-                                                }
-                                                busy = false
+                                Button(
+                                    onClick = {
+                                        selectedTab = 0
+                                        busy = true
+                                        scope.launch {
+                                            runCatching {
+                                                WorkspaceApiClient().companionCheckin("Please provide a caring daily reflection prompt for today.", personality)
+                                            }.onSuccess {
+                                                val checkinText = it.optString("text")
+                                                messages.add(CompanionMessage(fromUser = false, text = checkinText, assistantName = "AI Companion (Daily Check-in)"))
+                                                notice = "Daily check-in received."
+                                            }.onFailure {
+                                                notice = safeUserFacingIssue(it, "Check-in failed.")
                                             }
-                                        },
-                                        shape = RoundedCornerShape(10.dp)
-                                    ) {
-                                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(Modifier.width(4.dp))
-                                        Text("Run Daily Check-in", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelMedium)
-                                    }
+                                            busy = false
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(10.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                ) {
+                                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Run Daily Check-in", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall)
                                 }
                             }
                         }
@@ -978,13 +972,11 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .horizontalScroll(rememberScrollState()),
+                                LazyRow(
+                                    modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    listOf("Caring", "Encouraging", "Calm", "Motivational", "Professional").forEach { p ->
+                                    items(listOf("Caring", "Encouraging", "Calm", "Motivational", "Professional")) { p ->
                                         FilterChip(
                                             selected = personality == p,
                                             onClick = { updatePersonality(p) },
@@ -1012,23 +1004,18 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .horizontalScroll(rememberScrollState()),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                Button(
+                                    onClick = {
+                                        selectedTab = 0
+                                        dictationPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(10.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                                 ) {
-                                    Button(
-                                        onClick = {
-                                            selectedTab = 0
-                                            dictationPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                                        },
-                                        shape = RoundedCornerShape(10.dp)
-                                    ) {
-                                        Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(Modifier.width(4.dp))
-                                        Text("Dictate Message", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelMedium)
-                                    }
+                                    Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Dictate Message", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall)
                                 }
                             }
                         }

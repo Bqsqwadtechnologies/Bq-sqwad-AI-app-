@@ -9,7 +9,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.*
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyRow
@@ -329,16 +328,20 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                             "When your subscription period approaches renewal or capacity is near full, instant capacity add-ons keep your customer workflows completely uninterrupted.",
                             style = MaterialTheme.typography.bodySmall
                         )
-                        Row(
-                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        LazyRow(
+                            Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            FilterChip(selected = false, onClick = onOpenPlans, label = { Text("+1,000 Credits", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall) })
-                            FilterChip(selected = false, onClick = onOpenPlans, label = { Text("+50 GB Storage", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall) })
-                            FilterChip(selected = false, onClick = onOpenPlans, label = { Text("Priority Channels", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall) })
+                            item { FilterChip(selected = false, onClick = onOpenPlans, label = { Text("+1,000 Credits", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall) }) }
+                            item { FilterChip(selected = false, onClick = onOpenPlans, label = { Text("+50 GB Storage", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall) }) }
+                            item { FilterChip(selected = false, onClick = onOpenPlans, label = { Text("Priority Channels", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall) }) }
                         }
-                        Button(onClick = onOpenPlans, modifier = Modifier.fillMaxWidth()) {
-                            Text("Browse Available Add-ons & Boosts")
+                        Button(
+                            onClick = onOpenPlans,
+                            modifier = Modifier.fillMaxWidth(),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Text("Browse Add-ons & Boosts", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelMedium)
                         }
                     }
                 }
@@ -735,11 +738,19 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                         Text("• Step 2: Our neural pipeline structures and cleanses the context for sub-second retrieval.", style = MaterialTheme.typography.bodySmall)
                         Text("• Step 3: We test our assistants in the sandbox playground before publishing.", style = MaterialTheme.typography.bodySmall)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = { tab = "Knowledge" }, modifier = Modifier.weight(1f)) {
-                                Text("Open Knowledge")
+                            Button(
+                                onClick = { tab = "Knowledge" },
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Text("Knowledge", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall)
                             }
-                            OutlinedButton(onClick = { tab = "Assistants" }, modifier = Modifier.weight(1f)) {
-                                Text("Test Assistant")
+                            OutlinedButton(
+                                onClick = { tab = "Assistants" },
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Text("Assistants", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall)
                             }
                         }
                     }
@@ -1422,11 +1433,19 @@ private fun BusinessPlanGateView(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                 ) {
-                    Button(onClick = onOpenPlans, modifier = Modifier.weight(1f)) {
-                        Text("View All Plans")
+                    Button(
+                        onClick = onOpenPlans,
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                    ) {
+                        Text("View Plans", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall)
                     }
-                    OutlinedButton(onClick = onRefresh) {
-                        Text("Check Active Access")
+                    OutlinedButton(
+                        onClick = onRefresh,
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                    ) {
+                        Text("Refresh Access", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }

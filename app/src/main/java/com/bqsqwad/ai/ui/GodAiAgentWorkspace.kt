@@ -1,15 +1,18 @@
 package com.bqsqwad.ai.ui
 
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
@@ -109,8 +112,8 @@ fun GodAiAgentWorkspace(onBack: () -> Unit = {}) {
                         }
                         TextButton(onClick = onBack) { Text("Back", color = MaterialTheme.colorScheme.onPrimaryContainer) }
                     }
-                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        modes.forEach { item -> FilterChip(selected = mode == item, onClick = { mode = item }, label = { Text(item) }) }
+                    LazyRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(modes) { item -> FilterChip(selected = mode == item, onClick = { mode = item }, label = { Text(item) }) }
                     }
                 }
             }
@@ -143,11 +146,24 @@ fun GodAiAgentWorkspace(onBack: () -> Unit = {}) {
                         Text("Proposed plan · review before continuing", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         Text(value)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = { runAgent(true) }, enabled = !busy && awaitingApproval, modifier = Modifier.weight(1f)) {
-                                Icon(Icons.Default.CheckCircle, contentDescription = null)
-                                Text("Approve & continue")
+                            Button(
+                                onClick = { runAgent(true) },
+                                enabled = !busy && awaitingApproval,
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Approve", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall)
                             }
-                            OutlinedButton(onClick = { plan = null; result = null; awaitingApproval = false }, enabled = !busy, modifier = Modifier.weight(1f)) { Text("Revise plan") }
+                            OutlinedButton(
+                                onClick = { plan = null; result = null; awaitingApproval = false },
+                                enabled = !busy,
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Text("Revise", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall)
+                            }
                         }
                     }
                 }
