@@ -7,6 +7,7 @@ import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 
 /** Process-wide visibility signal used to suppress background-style notifications while visible. */
 object AppVisibility {

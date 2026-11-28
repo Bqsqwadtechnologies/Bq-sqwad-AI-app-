@@ -4691,6 +4691,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                         Button(onClick = { openCredits() }) { Text("Buy credits", maxLines = 1, softWrap = false) }
                                     }
                                 }
+                            }
                         }
                         if (!dictationUiActive) Column(
                             Modifier
