@@ -662,7 +662,8 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                                             playProducts,
                                             billing,
                                             onContact = { contactPlan = ContactSelection(plan.id, plan.name, "custom", plan.features) },
-                                            onStatus = { status = it }
+                                            onStatus = { status = it },
+                                            onContinueFree = onBack
                                         )
                                     }
                                 }
@@ -723,7 +724,8 @@ private fun LivePlanCard(
     playProducts: List<ProductDetails>,
     billing: PlayBillingClient?,
     onContact: () -> Unit,
-    onStatus: (String) -> Unit
+    onStatus: (String) -> Unit,
+    onContinueFree: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val supportedPeriods = if (plan.playEligible) {
@@ -927,7 +929,7 @@ private fun LivePlanCard(
             if (isFreePlan) {
                 Text("Included at no cost with your account.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                 OutlinedButton(
-                    onClick = onBack,
+                    onClick = onContinueFree,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Continue on Free plan")
