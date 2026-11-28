@@ -23,7 +23,7 @@ async function pickAccessibleModel(env, preferred, pattern, exclude = /(preview|
   const alt = [...ids].filter(id => pattern.test(id) && !exclude.test(id)).sort().reverse()[0];
   return alt || preferred;
 }
-const TOKEN_METERED = new Set(["chat", "vision", "chat_attachment", "personal_intelligence", "team_chat", "live_camera", "live_voice", "web_search", "image_generation", "image_edit"]);
+const TOKEN_METERED = new Set(["chat", "vision", "chat_attachment", "personal_intelligence", "team_chat", "live_camera", "live_voice", "web_search", "image_generation", "image_edit", "data_analyst", "data_analysis_workspace"]);
 
 import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete, firestoreQuery, deleteFirebaseAuthUser, deleteFirebaseStoragePrefix, createSupabaseStorageSignedReadUrl } from "./firebase.js";
 import { retainFileBoxItems } from "./file-box-retention.js";
@@ -943,6 +943,8 @@ const CAPABILITY_PRICE_OPERATIONS = Object.freeze({
   companion_checkin: "feature.companion_checkin",
   device_commands: "feature.device_commands",
   learning: "feature.learning",
+  data_analyst: "feature.data_analyst",
+  data_analysis_workspace: "feature.data_analyst",
   organization_studio: "feature.organization_studio",
   truth_guard: "feature.truth_guard"
 });
@@ -1390,7 +1392,8 @@ async function seedAdminPricingDefaults() {
 async function capability(uid, name) {
   assertPublicCapabilityAllowed(name);
   const gpt6TextCapabilities = new Set(["chat", "pdf", "vision", "business", "business_ai", "truth_guard", "companion", "companion_checkin", "learning", "learning_studio", "life_matters", "frontier_lab", "personal_intelligence", "data_analyst", "organization_studio", "device_commands"]);
-  const pinToGpt6Luna = gpt6TextCapabilities.has(String(name || "").trim().toLowerCase());
+  const normCapability = name === "data_analysis_workspace" ? "data_analyst" : String(name || "").trim().toLowerCase();
+  const pinToGpt6Luna = gpt6TextCapabilities.has(normCapability);
   const control = await firestoreGet("adminAdvancedOptions/capability_" + name).catch(() => null);
   if (control?.enabled === false || control?.killSwitch === true) throw new Error("capability_disabled:capability_" + name);
   const defaults = {
@@ -1772,7 +1775,7 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null, opti
   const currentProfile = await readCanonicalUserBalance(uid);
   if (!currentProfile) throw new Error("Account not found.");
   if (Number(currentProfile.suspended || 0) === 1) throw new Error("Your account is suspended.");
-  const planWorkspaceCapabilities = new Set(["business_ai","truth_guard","learning_studio","companion","companion_checkin","life_matters","frontier_lab"]);
+  const planWorkspaceCapabilities = new Set(["business_ai","truth_guard","learning_studio","companion","companion_checkin","life_matters","frontier_lab","data_analyst","data_analysis_workspace"]);
   if (planWorkspaceCapabilities.has(String(capabilityName || "").trim().toLowerCase())) return { reservationId: null, amount: 0, planCovered: true };
   if (await isCanonicalPlanCovered(uid, capabilityName) || isSubscriptionCoveredCapability(currentProfile, capabilityName)) {
     return { reservationId: null, amount: 0, planCovered: true };

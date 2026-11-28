@@ -8322,7 +8322,7 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenSign
         playManagement = runCatching { api.playSubscriptionManagement() }.getOrNull()
         entitlements = runCatching {
             val a = api.entitlements().optJSONArray("items") ?: JSONArray()
-            List(a.length()) { i -> a.getJSONObject(i) }
+            (0 until a.length()).mapNotNull { i -> a.optJSONObject(i) }
         }.getOrDefault(emptyList())
         runCatching { AccountDeletionClient().deletionStatus() }
             .onSuccess { status -> scheduledDeletionAt = status.optString("scheduledDeletionAt").takeIf { status.optBoolean("pending") && it.isNotBlank() && it != "null" } }

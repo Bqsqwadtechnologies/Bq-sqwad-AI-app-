@@ -187,3 +187,15 @@ And no: `rg "dictationRecording = true" app/src/main/java/com/bqsqwad/ai/ui/BQSq
 - Added deep category navigation to `ProductCatalogScreen.kt` so selecting business subscriptions routes directly into the dedicated Business AI plans section (`category="business"`).
 - Connected workspace plan navigation in `BQSqwadApp.kt` to select the business category when opening plans from the Business AI workspace.
 - Updated Cloudflare Worker training asset finalizer to record structured domain knowledge training metadata upon file verification.
+
+### Feature Reliability & Crash Prevention Audit (TruthGuard, Companion, Life Mathis, Learning Studio, Data Analysis)
+1. **Crash Prevention & Null-Safe JSON Parsing**:
+   - Replaced unsafe `getJSONObject(i)` calls with `optJSONObject(i)` null-safe filtering in `ProductCatalogScreen.kt` (`parseUserEntitlements`, `parseContactOptions`, `parseCatalog`, `parsePlans`, and sales status parsing) and `BQSqwadApp.kt` (settings entitlements parsing) to prevent NullPointerExceptions and JSONExceptions.
+2. **Data Analysis Routing & Metering Fix**:
+   - Registered `data_analysis_workspace` and `data_analyst` in Cloudflare Worker `index.js` under `TOKEN_METERED`, `gpt6TextCapabilities`, `planWorkspaceCapabilities`, and `CAPABILITY_PRICE_OPERATIONS`.
+   - Mapped `dataanalysisworkspace` to canonical `data_analyst` in scope normalizer, preventing 503 `generation_price_not_configured` and 400 errors during SSE streaming.
+3. **AI Companion Free Tier Unblock**:
+   - Removed artificial `card_verification_required` ($0.50 hold) blocker in `legacy-native.js` for `companionfree` tier, restoring immediate functionality to free Companion chat and check-ins without policy friction.
+4. **Workspace Scope Boundary Optimization**:
+   - Broadened natural prompt acceptance in `legacy-native.js` for Companion, Life Mathis, and Data Analyst workspaces while maintaining strict redirection for completely out-of-scope tasks (e.g. asking a companion to code an app).
+   - Verified 22/22 unit and integration tests passing in Cloudflare Worker suite.

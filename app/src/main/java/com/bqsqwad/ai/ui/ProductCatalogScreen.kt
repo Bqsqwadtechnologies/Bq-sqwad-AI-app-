@@ -165,7 +165,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                 val salesNoticeTask = if (signedIn) async {
                     runCatching {
                         val a=api.contactSalesStatus().optJSONArray("requests")
-                        val rows=a?.let { (0 until it.length()).map { i -> it.getJSONObject(i) } } ?: emptyList()
+                        val rows=a?.let { (0 until it.length()).mapNotNull { i -> it.optJSONObject(i) } } ?: emptyList()
                         val contacted=rows.firstOrNull { it.optString("status")=="contacted" }
                         val seen=rows.firstOrNull { it.optString("status")=="seen" }
                         contacted?.let { "Sales has contacted you about "+it.optString("planName").ifBlank{"your request"}+". Check your email." }
@@ -1043,8 +1043,8 @@ private fun LivePlanCard(
 
 private fun parseUserEntitlements(body:JSONObject):List<UserEntitlement> {
     val a=body.optJSONArray("items")?:JSONArray()
-    return List(a.length()){i->
-        val x=a.getJSONObject(i)
+    return (0 until a.length()).mapNotNull { i ->
+        val x=a.optJSONObject(i) ?: return@mapNotNull null
         UserEntitlement(x.optString("id"),x.optString("planId"),x.optString("productId"),x.optString("product"),x.optString("basePlanId").ifBlank{null},x.optString("state"),x.optString("renewalState"),x.optString("endDate").ifBlank{null})
     }.filter { it.planId.isNotBlank() || it.productId.isNotBlank() }
 }
@@ -1061,8 +1061,8 @@ private fun formatEntitlementDate(value:String):String {
 private fun parseContactOptions(body:JSONObject):List<PublicContactOption>{
     val root=catalogPayload(body)
     val a=root.optJSONArray("publicContactSales")?:root.optJSONObject("catalog")?.optJSONArray("publicContactSales")?:JSONArray()
-    return List(a.length()){i->
-        val x=a.getJSONObject(i)
+    return (0 until a.length()).mapNotNull { i ->
+        val x=a.optJSONObject(i) ?: return@mapNotNull null
         val f=x.optJSONArray("features")?:JSONArray()
         val l=x.optJSONObject("limits")?:JSONObject()
         val limits=mutableMapOf<String,String>(); l.keys().forEach{k->limits[k]=l.optString(k)}
@@ -1082,8 +1082,8 @@ private fun parseCatalog(body:JSONObject):List<PlayCatalogEntry>{
     val root = catalogPayload(body)
     val a=root.optJSONArray("products") ?: root.optJSONObject("catalog")?.optJSONArray("products") ?: JSONArray()
     val visiblePlanIds = parsePlans(root).map { it.id }.toSet()
-    return List(a.length()){i ->
-        val p=a.getJSONObject(i)
+    return (0 until a.length()).mapNotNull { i ->
+        val p=a.optJSONObject(i) ?: return@mapNotNull null
         PlayCatalogEntry(
             p.optString("planId"),
             p.optString("productId"),
@@ -1115,7 +1115,7 @@ private fun parsePlans(body:JSONObject):List<LivePlan>{
     val a = root.optJSONArray("plans")
         ?: nested?.optJSONArray("plans")
         ?: sectionPlans
-    return List(a.length()){i -> val p=a.getJSONObject(i); val f=p.optJSONArray("features")?:JSONArray();val l=p.optJSONObject("limits")?:JSONObject();val limits=mutableMapOf<String,String>();l.keys().forEach{key->limits[key]=l.optString(key)};LivePlan(
+    return (0 until a.length()).mapNotNull { i -> val p=a.optJSONObject(i) ?: return@mapNotNull null; val f=p.optJSONArray("features")?:JSONArray();val l=p.optJSONObject("limits")?:JSONObject();val limits=mutableMapOf<String,String>();l.keys().forEach{key->limits[key]=l.optString(key)};LivePlan(
             p.optString("id"),
             p.optString("name"),
             p.optString("module"),

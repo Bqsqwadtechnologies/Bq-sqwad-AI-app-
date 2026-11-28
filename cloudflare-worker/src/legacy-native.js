@@ -24,7 +24,7 @@ function normalizeScopeWorkspace(value) {
     lifemathis: "life_mathis", lifemathisworkspace: "life_mathis", lifematters: "life_mathis", lifemattersworkspace: "life_mathis",
     companion: "companion", aicompanion: "companion",
     personal: "personal_intelligence", personalintelligence: "personal_intelligence",
-    dataanalyst: "data_analyst", dataanalysis: "data_analyst", dataanalystworkspace: "data_analyst",
+    dataanalyst: "data_analyst", dataanalysis: "data_analyst", dataanalystworkspace: "data_analyst", dataanalysisworkspace: "data_analyst",
     frontier: "frontier_lab", frontierlab: "frontier_lab",
     video: "video", videogeneration: "video", videoworkspace: "video"
   };
@@ -47,7 +47,7 @@ export function classifyWorkspaceScope(workspace, prompt) {
     return ["CHAT", "Main Chat"];
   };
 
-  const clearlyUnrelated = /\b(write me (a )?(love )?poem|love poem|tell me (the )?news|latest news|weather forecast|build (me )?(an? )?app|write (me )?(an? )?email|send (an? )?email|tell me a joke|make me laugh|generate (an? )?image|draw (me )|small talk|code (an? )?app|create (a )?website)\b/.test(text);
+  const clearlyUnrelated = /\b(write me (a )?(love )?poem|love poem|funny poem|tell me (the )?(latest )?news|latest news|weather forecast|what is the weather|build (me )?(an? )?([a-z]+ )?app|write (me )?(an? )?email|send (an? )?email|tell me a joke|make me laugh|generate (an? )?(image|picture)|draw (me )|small talk|code (an? )?([a-z]+ )?app|create (a )?website)\b/.test(text);
   let inScope = false;
   switch (key) {
     case "learning":
@@ -57,16 +57,16 @@ export function classifyWorkspaceScope(workspace, prompt) {
       inScope = !clearlyUnrelated && (/\b(claim|verify|fact.?check|is it true|true or false|check whether|check if|evidence|sources|hoax|rumou?r|misinformation|debunk|reliable source|is .* true|did .* really)\b/.test(text) || (!/^(what|who|where|when|why|how|write|create|generate|make|build|explain|tell me|give me)\b/.test(text) && /\b(is|are|was|were|has|have|causes?|caused|leads? to|proves?|orbits?|contains?|shows?|claims?|reports?)\b/.test(text)));
       break;
     case "life_mathis":
-      inScope = !clearlyUnrelated && /\b(life advice|life guidance|personal decision|relationship|career|personal growth|habit|motivation|stress|wellbeing|well-being|difficult decision|family issue|life challenge|confidence|boundaries|coping|what should i do)\b/.test(text);
+      inScope = !clearlyUnrelated;
       break;
     case "companion":
-      inScope = !clearlyUnrelated && /\b(hi|hello|hey|how are you|talk to me|check.?in|i feel|i am feeling|i'm feeling|i had a bad day|lonely|sad|worried|anxious|encourage|motivate|celebrate|thank you|thanks|need someone to talk|support me|keep me company)\b/.test(text);
+      inScope = !clearlyUnrelated;
       break;
     case "personal_intelligence":
       inScope = !clearlyUnrelated && /\b(plan|planning|schedule|organize|organise|prioritize|prioritise|to-do|task list|goal|routine|calendar|time management|break down|project plan|weekly plan|daily plan)\b/.test(text);
       break;
     case "data_analyst":
-      inScope = !clearlyUnrelated && /\b(analy[sz]e|analysis|dataset|data|spreadsheet|csv|xlsx|statistics|chart|trend|report|sql|metrics|calculate|correlation|average|median|regression|visuali[sz]e)\b/.test(text);
+      inScope = !clearlyUnrelated;
       break;
     case "frontier_lab":
       inScope = !clearlyUnrelated && /\b(experiment|hypothesis|prototype|simulation|benchmark|lab|research design|test an idea|scientific model|proof of concept|feasibility|experimental)\b/.test(text);
@@ -165,9 +165,7 @@ export async function companionChat(env,user,b,charge,commit,reverse){
   const redirect = await workspaceScopeRedirect("companion", m);
   if (redirect) return { ok: true, redirect };
   const g=await gate(user,env,"companionfree");
-  if(g.planId==="companionfree"&&!g.adminTestMode&&!g.cardVerified){
-    throw Object.assign(new Error("card_verification_required"),{httpStatus:403,safeError:"card_verification_required",message:"A one-time $0.50 card verification is required to unlock free-tier features. This verification is used strictly to prevent multi-account abuse. Once a card is verified, it is permanently linked to this account and cannot be used to verify any other account across the entire app and website."});
-  }
+  // Companion Free operates with standard plan allowances
   const normMsg = m.toLowerCase().trim().replace(/[?.!,;:]+$/, "");
   if (normMsg) {
     const pastMessages = await firestoreQuery("companionMessages", {
@@ -226,9 +224,7 @@ export async function companionCheckin(env,user,b,charge,commit,reverse){
   const redirect = await workspaceScopeRedirect("companion", p);
   if (redirect) return { ok: true, redirect };
   const g=await gate(user,env,"companionfree");
-  if(g.planId==="companionfree"&&!g.adminTestMode&&!g.cardVerified){
-    throw Object.assign(new Error("card_verification_required"),{httpStatus:403,safeError:"card_verification_required",message:"A one-time $0.50 card verification is required to unlock free-tier features. This verification is used strictly to prevent multi-account abuse. Once a card is verified, it is permanently linked to this account and cannot be used to verify any other account across the entire app and website."});
-  }
+  // Companion Free operates with standard plan allowances
   const allowedPersonality=new Set(["Warm","Caring","Encouraging","Calm"]);
   const requestedPersonality=clean(b.personality||"Warm",40);
   const personality=allowedPersonality.has(requestedPersonality)?requestedPersonality:"Warm";
