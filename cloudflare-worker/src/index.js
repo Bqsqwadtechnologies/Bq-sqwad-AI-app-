@@ -2274,9 +2274,17 @@ const BQ_APP_KNOWLEDGE = [
 async function reserveMonthlyUsageCounter(collection,uid,monthKey,planId,limit,errorCode){const path=collection+"/"+uid+"_"+monthKey;for(let attempt=0;attempt<6;attempt++){const current=await firestoreGet(path);const count=Math.max(0,Number(current?.count||0));if(count>=limit)throw Object.assign(new Error(errorCode),{httpStatus:429,safeError:errorCode});const data={uid,monthKey,planId,count:count+1,updatedAt:new Date()};try{if(current)await firestoreCommit([{path,data,updateTime:current.__updateTime}]);else await firestoreCommit([{path,data,create:true}]);return path}catch(error){if(attempt===5)throw new Error("workspace_usage_reservation_failed")}}throw new Error("workspace_usage_reservation_failed")}
 async function releaseMonthlyUsageCounter(path){for(let attempt=0;attempt<5;attempt++){const current=await firestoreGet(path);if(!current||Number(current.count||0)<=0)return;try{await firestoreCommit([{path,data:{uid:current.uid,monthKey:current.monthKey,planId:current.planId,count:Math.max(0,Number(current.count||0)-1),updatedAt:new Date()},updateTime:current.__updateTime}]);return}catch{if(attempt===4)return}}}
 const COMPOSIO_TOOLKITS = new Set([
-  "googledrive", "googlecalendar", "gmail", "github", "one_drive",
-  "outlook", "dropbox", "notion", "slack", "trello", "linear",
-  "googledocs", "googlesheets", "googlemeet", "figma", "jira", "airtable", "salesforce", "servicenow", "salesforce", "servicenow"
+  // Google and Microsoft productivity
+  "googledrive", "googlecalendar", "gmail", "googledocs", "googlesheets", "googlemeet",
+  "one_drive", "outlook", "microsoft_teams",
+  // Engineering, planning and collaboration
+  "github", "gitlab", "bitbucket", "linear", "jira", "confluence", "trello",
+  "asana", "clickup", "monday", "notion", "slack", "discord",
+  // Design, CRM, support and business operations
+  "figma", "canva", "airtable", "salesforce", "hubspot", "servicenow",
+  "zendesk", "intercom", "dropbox",
+  // Scheduling, commerce and payments
+  "zoom", "calendly", "todoist", "shopify", "stripe"
 ]);
 
 function connectorToolSchema(raw) {
