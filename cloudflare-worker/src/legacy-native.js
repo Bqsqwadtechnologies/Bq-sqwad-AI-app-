@@ -92,12 +92,17 @@ export function workspaceScopeSystemPrompt(workspace) {
   const key = normalizeScopeWorkspace(workspace);
   if (!key) return "";
   const { title, job } = SCOPE_WORKSPACES[key];
-  return "STRICT WORKSPACE BOUNDARY: You are " + title + ". Only perform this workspace's job: " + job + ". Do not act as Main Chat or perform unrelated tasks, even if the user insists. If a request is outside scope, politely say this workspace is only for " + job + " and direct the user to Main Chat. Never fabricate a result for an out-of-scope task.";
+  return "WORKSPACE IDENTITY: You are " + title + ". Prioritize this workspace's purpose: " + job + ". Keep the user in this workspace; never trigger navigation or tell the app to return to Main Chat. If a request is outside the main purpose, briefly explain the boundary and offer the closest useful help that can be provided here. Never fabricate a result.";
 }
 
 export async function workspaceScopeRedirect(workspace, prompt) {
   const key = normalizeScopeWorkspace(workspace);
   if (!key) return null;
+  // Dedicated feature workspaces must keep the conversation in their own UI.
+  // The model is still given the workspace-specific system prompt, but a broad
+  // or naturally phrased question must never return a navigation redirect that
+  // silently drops the user's request and sends them to Main Chat.
+  if (["learning", "truthguard", "life_mathis", "companion"].includes(key)) return null;
   const stored = await firestoreGet("adminAdvancedOptions/workspace_scope_guards") || {};
   const flags = stored.enabledByWorkspace || stored.config?.enabledByWorkspace || {};
   if (flags[key] === false) return null;
@@ -209,10 +214,10 @@ export async function companionChat(env,user,b,charge,commit,reverse){
     const history=settings.saveHistory===false||p.memoryEnabled===false?[]:await firestoreQuery("companionMessages",{filters:[{field:{fieldPath:"uid"},op:"EQUAL",value:{stringValue:user.uid}}],limit:20});
     history.sort((x,y)=>String(x.createdAt||"").localeCompare(String(y.createdAt||"")));
     const memory=p.memoryEnabled===false?"":history.map(x=>String(x.role||"user")+": "+clean(x.text,1000)).join("\n");
-    const z=await runProvider(env,{primaryProviderId:"openai",primaryModelId:"gpt-6-luna",fallbackProviderIds:[]},{message:m,system:["You are BQ Sqwad AI Companion, powered by ChatGPT 6 Luna.",workspaceScopeSystemPrompt("companion"),"Be warm, supportive, respectful and concise.","Do not claim to be human or a real-world person.","Respect the user's boundaries and do not pressure them.","Personality: "+personality,memory?"Conversation memory:\n"+memory:""].filter(Boolean).join("\n")});
+    const z=await runProvider(env,{primaryProviderId:"openai",primaryModelId:"gpt-6-luna",fallbackProviderIds:[]},{message:m,system:["You are Goodshina, the named AI companion inside BQ SQWAD AI. You are powered by BQ SQWAD AI.",workspaceScopeSystemPrompt("companion"),"Be warm, supportive, respectful and concise.","Do not claim to be human or a real-world person.","Respect the user's boundaries and do not pressure them.","Personality: "+personality,memory?"Conversation memory:\n"+memory:""].filter(Boolean).join("\n")});
     if(settings.saveHistory!==false){
       await firestoreCreate("companionMessages/"+crypto.randomUUID(),{uid:user.uid,role:"user",text:m,createdAt:new Date()});
-      await firestoreCreate("companionMessages/"+crypto.randomUUID(),{uid:user.uid,role:"assistant",text:z.text||"",createdAt:new Date(),providerId:z.providerId||null,modelId:"gpt-6-luna",assistantName:"ChatGPT 6 Luna"});
+      await firestoreCreate("companionMessages/"+crypto.randomUUID(),{uid:user.uid,role:"assistant",text:z.text||"",createdAt:new Date(),providerId:z.providerId||null,modelId:"gpt-6-luna",assistantName:"Goodshina"});
     }
     await commit(user.uid,r.reservationId,z.providerId||"companion");
     return {ok:true,text:z.text||"",answer:z.text||"",creditsCharged:r.amount||0,cached:false,modelId:"gpt-6-luna",assistantName:"ChatGPT 6 Luna"};
