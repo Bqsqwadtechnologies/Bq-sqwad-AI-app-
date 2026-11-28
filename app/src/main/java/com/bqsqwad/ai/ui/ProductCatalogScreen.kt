@@ -409,7 +409,8 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                             playProducts,
                             billing,
                             onContact = { contactPlan = ContactSelection(plan.id, plan.name, "custom", plan.features) },
-                            onStatus = { status = it }
+                            onStatus = { status = it },
+                            onContinueFree = onBack
                         )
                     }
                 }
