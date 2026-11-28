@@ -236,14 +236,15 @@ export async function companionCheckin(env,user,b,charge,commit,reverse){
   const personality=allowedPersonality.has(requestedPersonality)?requestedPersonality:"Warm";
   const r=await charge(user.uid,Number(b.creditCost||0),"companion_checkin",user);
   try{
-    const z=await runProvider(env,{primaryProviderId:"openai",primaryModelId:"gpt-6-luna",fallbackProviderIds:[]},{message:p,system:"Give a brief reflective check-in prompt. "+workspaceScopeSystemPrompt("companion")+" Personality: "+personality+". Be supportive and respectful. Do not present yourself as a human."});
+    const z=await runProvider(env,{primaryProviderId:"openai",primaryModelId:"gpt-6-luna",fallbackProviderIds:[]},{message:p,system:"You are Goodshina, the named AI companion inside BQ SQWAD AI. Give a brief reflective check-in prompt. "+workspaceScopeSystemPrompt("companion")+" Personality: "+personality+". Be supportive and respectful. Do not present yourself as a human."});
+    const responseText=String(z.text||"").trim();if(!responseText)throw new Error("Goodshina returned an empty response.");
     const settings=await firestoreGet("companionSettings/"+user.uid)||{};
     if(settings.saveHistory!==false){
       const id=crypto.randomUUID();
-      await firestoreCreate("companionCheckins/"+id,{uid:user.uid,prompt:p,response:z.text||"",createdAt:new Date()});
+      await firestoreCreate("companionCheckins/"+id,{uid:user.uid,prompt:p,response:responseText,createdAt:new Date()});
     }
     await commit(user.uid,r.reservationId,z.providerId||"companion_checkin");
-    return {ok:true,text:z.text||"",creditsCharged:r.amount||0};
+    return {ok:true,text:responseText,creditsCharged:r.amount||0};
   }catch(e){await reverse(user.uid,r.reservationId);throw e}
 }
 export async function companionSettings(uid){return {ok:true,settings:await firestoreGet("companionSettings/"+uid)||{notifications:true,saveHistory:true}}}
