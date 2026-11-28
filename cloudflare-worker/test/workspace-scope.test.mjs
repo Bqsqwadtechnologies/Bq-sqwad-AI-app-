@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { classifyWorkspaceScope, workspaceScopeSystemPrompt } from "../src/legacy-native.js";
+import { classifyWorkspaceScope, workspaceScopeRedirect, workspaceScopeSystemPrompt } from "../src/legacy-native.js";
 
 test("TruthGuard accepts explicit checks and clear claim statements but not general questions", () => {
   assert.deepEqual(classifyWorkspaceScope("truthguard", "Check whether this claim is true"), { inScope: true });
@@ -9,13 +9,13 @@ test("TruthGuard accepts explicit checks and clear claim statements but not gene
   assert.equal(classifyWorkspaceScope("truthguard", "What is photosynthesis?").inScope, false);
 });
 
-test("Learning accepts teaching requests and redirects unrelated requests to Main Chat", () => {
+test("Learning scope classifier identifies unrelated requests without forcing feature navigation", () => {
   assert.deepEqual(classifyWorkspaceScope("learning", "Teach me how photosynthesis works"), { inScope: true });
   for (const prompt of ["write me a love poem", "tell me the news", "build me an app", "tell me a joke"]) {
     const result = classifyWorkspaceScope("learning", prompt);
     assert.equal(result.inScope, false, prompt);
     assert.equal(result.redirect.workspace, "CHAT", prompt);
-    assert.match(result.redirect.message, /Main Chat/, prompt);
+    assert.ok(result.redirect.message.length > 0, prompt);
   }
 });
 
@@ -40,8 +40,8 @@ test("dedicated workspaces redirect unrelated prompts before any charge call is 
 test("dedicated workspace system prompts keep the model inside its job", () => {
   for (const workspace of ["learning", "truthguard", "life_mathis", "life_matters", "companion", "personal_intelligence", "data_analyst", "frontier_lab"]) {
     const prompt = workspaceScopeSystemPrompt(workspace);
-    assert.match(prompt, /STRICT WORKSPACE BOUNDARY/);
-    assert.match(prompt, /Do not act as Main Chat/);
+    assert.match(prompt, /WORKSPACE IDENTITY/);
+    assert.match(prompt, /never trigger navigation/);
   }
   assert.equal(workspaceScopeSystemPrompt("chat"), "");
 });
@@ -69,4 +69,11 @@ test("out-of-scope redirects are checked before direct workspace credit charging
   const aiCharge = indexSource.indexOf("chargeCredits(user.uid", aiStart);
   assert.ok(aiGuard >= 0 && aiCharge > aiGuard, "generic AI route must guard before charging");
   assert.equal(indexSource.includes('url.pathname === "/video/generate"'), false, "retired video generation route must stay absent");
+});
+
+
+test("dedicated AI feature workspaces never redirect the user out of their feature", async () => {
+  for (const workspace of ["learning", "truthguard", "life_mathis", "companion"]) {
+    assert.equal(await workspaceScopeRedirect(workspace, "Tell me how this works"), null, workspace);
+  }
 });
