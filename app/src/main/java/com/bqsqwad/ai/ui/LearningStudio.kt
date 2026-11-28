@@ -1,5 +1,6 @@
 package com.bqsqwad.ai.ui
 
+import android.app.Activity
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -30,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.bqsqwad.ai.core.PlayBillingClient
 import com.bqsqwad.ai.core.WorkspaceApiClient
 import com.bqsqwad.ai.core.copyToClipboard
 import kotlinx.coroutines.launch
@@ -42,7 +44,10 @@ private data class LearningPlanUi(
     val name: String,
     val price: String,
     val features: List<String>,
-    val limits: String
+    val limits: String,
+    val productId: String?,
+    val basePlans: List<String>,
+    val playEligible: Boolean
 )
 
 private data class SubjectInfo(
@@ -86,7 +91,9 @@ fun CompleteLearningStudioWorkspace(
     onOpenMainChat: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val activity = context as? Activity
     val scope = rememberCoroutineScope()
+    var billing by remember { mutableStateOf<PlayBillingClient?>(null) }
 
     var plans by remember { mutableStateOf<List<LearningPlanUi>>(emptyList()) }
     var activePlanId by remember { mutableStateOf("explorer") }
@@ -151,7 +158,12 @@ fun CompleteLearningStudioWorkspace(
                         p.optString("name"),
                         price,
                         List(features.length()) { features.optString(it) },
-                        p.optJSONObject("limits")?.toString()?.removePrefix("{")?.removeSuffix("}") ?: ""
+                        p.optJSONObject("limits")?.toString()?.removePrefix("{")?.removeSuffix("}") ?: "",
+                        p.optString("productId").ifBlank { null },
+                        (p.optJSONArray("basePlans") ?: JSONArray()).let { values ->
+                            List(values.length()) { values.optString(it) }.filter { it.isNotBlank() }
+                        },
+                        p.optBoolean("playEligible", false)
                     )
                 }
                 val progress = api.learningProgress()
@@ -164,6 +176,45 @@ fun CompleteLearningStudioWorkspace(
     }
 
     LaunchedEffect(refreshKey) { refresh() }
+
+    DisposableEffect(activity) {
+        if (activity != null) {
+            val manager = PlayBillingClient(activity, onPurchaseState = { state -> error = state.message })
+            billing = manager
+            manager.start()
+            onDispose { manager.close() }
+        } else {
+            onDispose { }
+        }
+    }
+
+    fun buyLearningPlan(planId: String) {
+        val plan = plans.firstOrNull { it.id == planId }
+        val productId = plan?.productId
+        val manager = billing
+        when {
+            plan == null -> error = "The selected Learning plan is not available in the current catalog. Refresh and try again."
+            !plan.playEligible -> error = "Google Play checkout is not enabled for this Learning plan."
+            productId.isNullOrBlank() -> error = "Google Play product is not configured for this Learning plan."
+            manager == null -> error = "Google Play checkout is still initializing. Please wait and try again."
+            else -> {
+                error = "Preparing secure Google Play checkout…"
+                manager.refreshProductThen(productId, "subs") { available ->
+                    if (!available) {
+                        error = "Google Play could not load this Learning subscription. Check your connection and retry."
+                    } else {
+                        val basePlan = plan.basePlans.firstOrNull()
+                        val result = manager.launchPurchase(productId, basePlan)
+                        if (result == null || result.responseCode != com.android.billingclient.api.BillingClient.BillingResponseCode.OK) {
+                            error = "Google Play checkout could not be opened for this Learning plan. Please retry."
+                        } else {
+                            error = null
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     fun runSession(customGoal: String? = null, customMode: String? = null, toolFeature: String? = null) {
         val input = (customGoal ?: goal).trim()
@@ -378,7 +429,7 @@ fun CompleteLearningStudioWorkspace(
                         ) {
                             Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text("Upgrade to Scholar for Unlimited Lessons")
+                            Text("Upgrade to Scholar with Google Play")
                         }
                     }
                 }
