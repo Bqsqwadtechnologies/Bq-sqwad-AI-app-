@@ -426,7 +426,7 @@ fun CompleteLearningStudioWorkspace(
                             BqStatusBadge("$quizzesCompleted quizzes")
                         }
                         OutlinedButton(
-                            onClick = onOpenPlans,
+                            onClick = { buyLearningPlan("learnscholar") },
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary)
                         ) {
