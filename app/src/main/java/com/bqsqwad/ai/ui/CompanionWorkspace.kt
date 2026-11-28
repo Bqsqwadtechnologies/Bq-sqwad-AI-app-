@@ -15,6 +15,9 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -75,6 +78,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
     var personality by remember { mutableStateOf("Caring") }
     var mode by remember { mutableStateOf("Chat") }
     var input by remember { mutableStateOf("") }
+    val inputBringIntoViewRequester = remember { BringIntoViewRequester() }
     var busy by remember { mutableStateOf(false) }
     var memoryEnabled by remember { mutableStateOf(true) }
     var notice by remember { mutableStateOf<String?>(null) }
@@ -746,8 +750,18 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                         OutlinedTextField(
                             value = input,
                             onValueChange = { input = it; notice = null },
-                            modifier = Modifier.weight(1f),
-                            placeholder = { Text("Talk to AI Companion…") },
+                            modifier = Modifier
+                                .weight(1f)
+                                .bringIntoViewRequester(inputBringIntoViewRequester)
+                                .onFocusChanged { focusState ->
+                                    if (focusState.isFocused) {
+                                        scope.launch {
+                                            kotlinx.coroutines.delay(180)
+                                            inputBringIntoViewRequester.bringIntoView()
+                                        }
+                                    }
+                                },
+                            placeholder = { Text("Message Goodshina…") },
                             maxLines = 4,
                             shape = RoundedCornerShape(20.dp)
                         )
