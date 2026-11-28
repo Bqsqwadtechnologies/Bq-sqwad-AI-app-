@@ -266,7 +266,6 @@ export async function learningSession(env,user,b,charge,commit,reverse){const go
     return {ok:true,id:cachedMatch.id||crypto.randomUUID(),planId:plan,mode,subject:clean(b.subject||"General",80),text:cachedMatch.text||cachedMatch.answer||"",answer:cachedMatch.text||cachedMatch.answer||"",creditsCharged:0,cached:true};
   }
   const r=await charge(user.uid,Number(b.creditCost||0),"learning_studio",user);try{let z;
-  try {
     z = await runProvider(env, { primaryProviderId: "openai", primaryModelId: "gpt-6-luna", fallbackProviderIds: [] }, {
       message: goal,
       system: [
@@ -279,7 +278,6 @@ export async function learningSession(env,user,b,charge,commit,reverse){const go
         "Plan: " + plan
       ].join("\n")
     });
-  }
   const answer=String(z.text||"").trim();if(!answer)throw new Error("Learning Studio returned an empty response.");
   const id=crypto.randomUUID();await firestoreCreate("learningSessions/"+id,{uid:user.uid,id,planId:plan,mode,subject:clean(b.subject||"General",80),goal,text:answer,answer,feature:feature||null,status:"completed",providerId:z.providerId||null,modelId:z.modelId||null,createdAt:new Date(),updatedAt:new Date()});await commit(user.uid,r.reservationId,z.providerId||"learning_studio");return {ok:true,id,planId:plan,mode,subject:clean(b.subject||"General",80),text:answer,answer,creditsCharged:r.amount||0}}catch(e){await reverse(user.uid,r.reservationId);throw e}}
 
