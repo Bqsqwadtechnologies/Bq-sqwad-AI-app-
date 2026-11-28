@@ -506,7 +506,10 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                                     color=if (autoRenew) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error,
                                     fontWeight=FontWeight.SemiBold
                                 )
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+                                Row(
+                                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
                                     Button(
                                         onClick = {
                                             val url = playManagement?.optString("managementUrl").orEmpty()
@@ -515,17 +518,17 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                                                 status = "Your Play subscriptions page opened. Turn off auto-renewal there; your access remains until the paid period ends."
                                             }
                                         },
-                                        modifier=Modifier.weight(1f)
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                                     ) {
-                                        Text(if (autoRenew) "Turn off auto-renewal" else "Manage subscription")
+                                        Text(if (autoRenew) "Cancel renewal" else "Manage plan", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelMedium)
                                     }
                                     OutlinedButton(
                                         onClick = {
                                             val url = playManagement?.optString("paymentMethodManagementUrl").orEmpty()
                                             if (url.isNotBlank()) context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                                         },
-                                        modifier=Modifier.weight(1f)
-                                    ) { Text("Payment method") }
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                    ) { Text("Payment method", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelMedium) }
                                 }
                                 Text(
                                     if (autoRenew) "Turn off auto-renewal opens the Play subscriptions page. BQ Sqwad AI will refresh your verified access after the change." else "Auto-renewal is currently off. You can manage or resubscribe through the Play subscriptions page. BQ Sqwad AI will refresh your verified access after the change.",

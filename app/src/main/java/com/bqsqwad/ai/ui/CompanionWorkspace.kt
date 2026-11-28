@@ -501,7 +501,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                             ) {
                                 Icon(Icons.Default.Star, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(4.dp))
-                                Text(if (isExpiring) "Expiring • Upgrade" else "Upgrade")
+                                Text(if (isExpiring) "Upgrade" else "Upgrade", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelMedium)
                             }
                         } else if (currentPlan?.id != "companionultimate") {
                             OutlinedButton(
@@ -509,35 +509,59 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                                 shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier.padding(start = 8.dp)
                             ) {
-                                Text("Manage")
+                                Text("Manage", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelMedium)
                             }
                         }
                     }
                 }
 
-                // Interactive Navigation Tabs
+                // Interactive Navigation Tabs (Horizontal arrangement to prevent vertical wrapping)
                 TabRow(
                     selectedTabIndex = selectedTab,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Tab(
                         selected = selectedTab == 0,
-                        onClick = { selectedTab = 0 },
-                        text = { Text("Conversation", fontWeight = FontWeight.SemiBold) },
-                        icon = { Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(18.dp)) }
-                    )
+                        onClick = { selectedTab = 0 }
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp)
+                        ) {
+                            Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Chat", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                        }
+                    }
                     Tab(
                         selected = selectedTab == 1,
-                        onClick = { selectedTab = 1 },
-                        text = { Text("Tool Guide", fontWeight = FontWeight.SemiBold) },
-                        icon = { Icon(Icons.Default.Build, contentDescription = null, modifier = Modifier.size(18.dp)) }
-                    )
+                        onClick = { selectedTab = 1 }
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp)
+                        ) {
+                            Icon(Icons.Default.Build, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Tool Guide", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                        }
+                    }
                     Tab(
                         selected = selectedTab == 2,
-                        onClick = { selectedTab = 2 },
-                        text = { Text("Plans & Sync", fontWeight = FontWeight.SemiBold) },
-                        icon = { Icon(Icons.Default.CloudSync, contentDescription = null, modifier = Modifier.size(18.dp)) }
-                    )
+                        onClick = { selectedTab = 2 }
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp)
+                        ) {
+                            Icon(Icons.Default.CloudSync, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Plans & Sync", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                        }
+                    }
                 }
             }
         }
@@ -800,7 +824,12 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
                                     Button(
                                         onClick = {
                                             selectedTab = 0
@@ -808,7 +837,9 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                                         },
                                         shape = RoundedCornerShape(10.dp)
                                     ) {
-                                        Text("Ask Luna Introduction")
+                                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Ask Intro", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelMedium)
                                     }
                                     OutlinedButton(
                                         onClick = {
@@ -827,7 +858,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                                     ) {
                                         Icon(Icons.Default.DeleteOutline, contentDescription = null, modifier = Modifier.size(16.dp))
                                         Spacer(Modifier.width(4.dp))
-                                        Text("Clear History")
+                                        Text("Clear History", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelMedium)
                                     }
                                 }
                             }
@@ -850,7 +881,12 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
                                     Button(
                                         onClick = {
                                             selectedTab = 0
@@ -872,7 +908,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                                     ) {
                                         Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
                                         Spacer(Modifier.width(4.dp))
-                                        Text("Run Daily Check-in")
+                                        Text("Run Daily Check-in", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelMedium)
                                     }
                                 }
                             }
@@ -917,7 +953,9 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                                     }
                                 } else {
                                     Button(onClick = onOpenPlans, shape = RoundedCornerShape(10.dp)) {
-                                        Text("Unlock Memory (View Plans)")
+                                        Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Unlock Memory", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelMedium)
                                     }
                                 }
                             }
@@ -974,7 +1012,12 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
                                     Button(
                                         onClick = {
                                             selectedTab = 0
@@ -984,7 +1027,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                                     ) {
                                         Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.size(16.dp))
                                         Spacer(Modifier.width(4.dp))
-                                        Text("Dictate Message")
+                                        Text("Dictate Message", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelMedium)
                                     }
                                 }
                             }

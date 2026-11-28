@@ -42,11 +42,10 @@ class BqApplication : Application() {
                 val lines = crashFile.readLines()
                 if (lines.isNotEmpty()) {
                     val timestamp = lines.firstOrNull() ?: ""
-                    val rawTrace = lines.drop(1).joinToString("
-")
+                    val rawTrace = lines.drop(1).joinToString("\n")
                     val sanitizedTrace = rawTrace
-                        .replace(Regex("[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}"), "[REDACTED_EMAIL]")
-                        .replace(Regex("(?i)bearer\s+[a-zA-Z0-9_.-]+"), "Bearer [REDACTED]")
+                        .replace(Regex("[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,6}"), "[REDACTED_EMAIL]")
+                        .replace(Regex("(?i)bearer\\s+[a-zA-Z0-9_.-]+"), "Bearer [REDACTED]")
                         .replace(Regex("(?i)apiKey=[a-zA-Z0-9_.-]+"), "apiKey=[REDACTED]")
                         .take(4000)
                     kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {

@@ -328,10 +328,13 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                             "When your subscription period approaches renewal or capacity is near full, instant capacity add-ons keep your customer workflows completely uninterrupted.",
                             style = MaterialTheme.typography.bodySmall
                         )
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            FilterChip(selected = false, onClick = onOpenPlans, label = { Text("+1,000 AI Credits") })
-                            FilterChip(selected = false, onClick = onOpenPlans, label = { Text("+50 GB Storage") })
-                            FilterChip(selected = false, onClick = onOpenPlans, label = { Text("Priority Channels") })
+                        Row(
+                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            FilterChip(selected = false, onClick = onOpenPlans, label = { Text("+1,000 Credits", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall) })
+                            FilterChip(selected = false, onClick = onOpenPlans, label = { Text("+50 GB Storage", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall) })
+                            FilterChip(selected = false, onClick = onOpenPlans, label = { Text("Priority Channels", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelSmall) })
                         }
                         Button(onClick = onOpenPlans, modifier = Modifier.fillMaxWidth()) {
                             Text("Browse Available Add-ons & Boosts")
