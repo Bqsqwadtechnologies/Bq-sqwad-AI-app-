@@ -53,7 +53,7 @@ private data class CompanionMessage(
     val fromUser: Boolean,
     val text: String,
     val isCached: Boolean = false,
-    val assistantName: String = "AI Companion",
+    val assistantName: String = "Goodshina",
     val timestamp: String = ""
 )
 
@@ -231,7 +231,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                                     fromUser = item.optString("role") == "user",
                                     text = item.optString("text"),
                                     isCached = item.optBoolean("cached", false),
-                                    assistantName = item.optString("assistantName").ifBlank { "AI Companion" }
+                                    assistantName = item.optString("assistantName").ifBlank { "Goodshina" }
                                 )
                             )
                         }
@@ -289,7 +289,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
             }.onSuccess { reply ->
                 val answer = reply.optString("text").ifBlank { reply.optString("answer") }
                 val isCached = reply.optBoolean("cached", false)
-                val assistantName = reply.optString("assistantName").ifBlank { "AI Companion" }
+                val assistantName = reply.optString("assistantName").ifBlank { "Goodshina" }
                 if (answer.isNotBlank()) {
                     messages.add(
                         CompanionMessage(
