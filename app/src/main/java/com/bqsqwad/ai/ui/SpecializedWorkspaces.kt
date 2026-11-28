@@ -522,7 +522,11 @@ Subject: $subject
 Mode: $mode
 Teach step by step, check understanding, and do not simply give answers when a learner needs to learn the method."""
                 )
-            }.onSuccess { result = it.optString("text") }
+            }.onSuccess {
+                val reply = it.optString("text").ifBlank { it.optString("answer") }
+                if (reply.isBlank()) error = "Life Mathis returned an empty response. Please try again."
+                else result = reply
+            }
                 .onFailure { error = safeUserFacingIssue(it, "Learning Studio could not respond.") }
             busy = false
         }
