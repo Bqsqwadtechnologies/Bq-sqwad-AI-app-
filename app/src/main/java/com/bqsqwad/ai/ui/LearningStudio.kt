@@ -244,14 +244,17 @@ fun CompleteLearningStudioWorkspace(
                 } else {
                     workspaceRedirect = null
                     val learningAnswer = response.optString("text").ifBlank { response.optString("answer") }
-                    if (learningAnswer.isBlank()) error("Learning Studio returned an empty response. Please retry.")
-                    answer = learningAnswer
-                    isAnswerCached = response.optBoolean("cached", false)
-
-                    if (input.isNotBlank() && learningAnswer.isNotBlank() && !isAnswerCached) {
-                        scope.launch {
-                            runCatching {
-                                WorkspaceApiClient().submitTrainingContribution(input, learningAnswer, "learning_studio", false)
+                    if (learningAnswer.isBlank()) {
+                        error = "Learning Studio returned an empty response. Please retry."
+                        answer = null
+                    } else {
+                        answer = learningAnswer
+                        isAnswerCached = response.optBoolean("cached", false)
+                        if (input.isNotBlank() && !isAnswerCached) {
+                            scope.launch {
+                                runCatching {
+                                    WorkspaceApiClient().submitTrainingContribution(input, learningAnswer, "learning_studio", false)
+                                }
                             }
                         }
                     }
