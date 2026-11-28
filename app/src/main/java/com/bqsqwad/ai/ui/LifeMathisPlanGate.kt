@@ -323,12 +323,32 @@ private fun LifeMathisGateCard(
             } else {
                 Button(
                     onClick = {
-                        val targetBasePlan = plan.basePlans.firstOrNull { it.contains(selectedPeriod) } ?: plan.basePlans.firstOrNull()
-                        val launched = billing?.launchPurchase(plan.id, targetBasePlan)
-                        if (launched == null) {
-                            onOpenPlans()
+                        val productId = plan.productId
+                        val targetBasePlan = plan.basePlans.firstOrNull { it.contains(selectedPeriod) }
+                            ?: plan.basePlans.firstOrNull()
+                        val manager = billing
+                        when {
+                            productId.isNullOrBlank() -> onStatus("Google Play product is not configured for this Life Mathis plan. Please contact support.")
+                            manager == null -> onStatus("Google Play checkout is still initializing. Please wait a moment and tap Subscribe again.")
+                            !plan.playEligible -> onStatus("This plan is not currently enabled for Google Play purchases.")
+                            else -> {
+                                onStatus("Preparing secure Google Play checkout…")
+                                manager.refreshProductThen(productId, "subs") { available ->
+                                    if (!available) {
+                                        onStatus("Google Play could not load this subscription yet. Check your connection and try Subscribe again.")
+                                    } else {
+                                        val launched = manager.launchPurchase(productId, targetBasePlan)
+                                        if (launched == null ||
+                                            launched.responseCode != com.android.billingclient.api.BillingClient.BillingResponseCode.OK
+                                        ) {
+                                            onStatus("Google Play checkout could not be opened for the selected plan. Please retry; you have not been redirected to another catalogue.")
+                                        }
+                                    }
+                                }
+                            }
                         }
                     },
+                    enabled = !active && !isFree,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(if (selectedPeriod == "yearly") "Subscribe Yearly" else "Subscribe Monthly")
