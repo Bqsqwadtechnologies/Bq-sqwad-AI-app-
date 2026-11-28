@@ -193,6 +193,7 @@ fun CompleteLearningStudioWorkspace(
                 } else {
                     workspaceRedirect = null
                     val learningAnswer = response.optString("text").ifBlank { response.optString("answer") }
+                    if (learningAnswer.isBlank()) error("Learning Studio returned an empty response. Please retry.")
                     answer = learningAnswer
                     isAnswerCached = response.optBoolean("cached", false)
 
