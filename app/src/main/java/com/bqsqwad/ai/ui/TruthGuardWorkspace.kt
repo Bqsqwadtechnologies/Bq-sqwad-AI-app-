@@ -1,5 +1,6 @@
 package com.bqsqwad.ai.ui
 
+import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.*
@@ -17,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.bqsqwad.ai.core.PlayBillingClient
 import com.bqsqwad.ai.core.WorkspaceApiClient
 import kotlinx.coroutines.launch
 import org.json.JSONArray
@@ -29,13 +31,18 @@ private data class TruthGuardPlan(
     val features: List<String>,
     val limits: Map<String, String>,
     val trialDays: Int,
-    val trialEligible: Boolean
+    val trialEligible: Boolean,
+    val productId: String?,
+    val basePlans: List<String>,
+    val playEligible: Boolean
 )
 
 @Composable
 fun CompleteTruthGuardWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val activity = context as? Activity
+    var billing by remember { mutableStateOf<PlayBillingClient?>(null) }
     val settingsPrefs = remember { context.getSharedPreferences("bq_sqwad_ui", android.content.Context.MODE_PRIVATE) }
     var webSearchEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("web_search_enabled", true)) }
     var claim by remember { mutableStateOf("") }
@@ -60,6 +67,46 @@ fun CompleteTruthGuardWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: ()
 
     val isAdmin = adminTestMode || activePlanId == "admin-unlimited"
     val proOrHigher = isAdmin || activePlanId == "tgpro" || activePlanId == "tgteam"
+
+
+    DisposableEffect(activity) {
+        if (activity != null) {
+            val manager = PlayBillingClient(activity, onPurchaseState = { state -> notice = state.message })
+            billing = manager
+            manager.start()
+            onDispose { manager.close() }
+        } else {
+            onDispose { }
+        }
+    }
+
+    fun buyTruthGuardPlan(planId: String) {
+        val plan = plans.firstOrNull { it.id == planId }
+        val productId = plan?.productId
+        val manager = billing
+        when {
+            plan == null -> notice = "The selected TruthGuard plan is not available. Refresh and try again."
+            !plan.playEligible -> notice = "Google Play checkout is not enabled for this TruthGuard plan."
+            productId.isNullOrBlank() -> notice = "Google Play product is not configured for this TruthGuard plan."
+            manager == null -> notice = "Google Play checkout is still initializing. Please wait and try again."
+            else -> {
+                notice = "Preparing secure Google Play checkout…"
+                manager.refreshProductThen(productId, "subs") { available ->
+                    if (!available) {
+                        notice = "Google Play could not load this TruthGuard subscription. Check your connection and retry."
+                    } else {
+                        val basePlan = plan.basePlans.firstOrNull()
+                        val result = manager.launchPurchase(productId, basePlan)
+                        if (result == null || result.responseCode != com.android.billingclient.api.BillingClient.BillingResponseCode.OK) {
+                            notice = "Google Play checkout could not be opened for this TruthGuard plan. Please retry."
+                        } else {
+                            notice = null
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
         loading = true
@@ -150,8 +197,8 @@ fun CompleteTruthGuardWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: ()
         contentPadding = PaddingValues(top = 12.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        item { TruthGuardHero(activePlanId, isAdmin, plans.firstOrNull { it.id == activePlanId }, onOpenPlans) }
-        item { TruthGuardPlanStrip(plans, activePlanId, isAdmin, onOpenPlans) }
+        item { TruthGuardHero(activePlanId, isAdmin, plans.firstOrNull { it.id == activePlanId }) { buyTruthGuardPlan("tgplus") } }
+        item { TruthGuardPlanStrip(plans, activePlanId, isAdmin, ::buyTruthGuardPlan) }
         if (!webSearchEnabled) item {
             SurfaceCard("Web Search is off", "Turn it on in Settings to verify claims against current web evidence.")
             OutlinedButton(onClick = onOpenSettings, modifier = Modifier.fillMaxWidth()) { Text("Open Settings") }
@@ -314,7 +361,7 @@ fun CompleteTruthGuardWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: ()
 }
 
 @Composable
-private fun TruthGuardHero(planId: String, isAdmin: Boolean, plan: TruthGuardPlan?, onOpenPlans: () -> Unit) {
+private fun TruthGuardHero(planId: String, isAdmin: Boolean, plan: TruthGuardPlan?, onBuyPlan: () -> Unit) {
     Surface(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
@@ -343,14 +390,14 @@ private fun TruthGuardHero(planId: String, isAdmin: Boolean, plan: TruthGuardPla
                         Text(plan.trialDays.toString() + "-day free trial", style = MaterialTheme.typography.labelMedium)
                     }
                 }
-                if (!isAdmin) OutlinedButton(onClick = onOpenPlans) { Text("View plans") }
+                if (!isAdmin) OutlinedButton(onClick = onBuyPlan) { Text("Subscribe with Google Play") }
             }
         }
     }
 }
 
 @Composable
-private fun TruthGuardPlanStrip(plans: List<TruthGuardPlan>, activePlanId: String, isAdmin: Boolean, onOpenPlans: () -> Unit) {
+private fun TruthGuardPlanStrip(plans: List<TruthGuardPlan>, activePlanId: String, isAdmin: Boolean, onBuyPlan: (String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("TruthGuard plans", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         plans.forEach { plan ->
@@ -365,7 +412,7 @@ private fun TruthGuardPlanStrip(plans: List<TruthGuardPlan>, activePlanId: Strin
                             }
                             if (price.isNotBlank()) Text(price, style = MaterialTheme.typography.bodySmall)
                         }
-                        if (active) AssistChip(onClick = onOpenPlans, label = { Text("ACTIVE") })
+                        if (active) AssistChip(onClick = {}, label = { Text("ACTIVE") })
                     }
                     if (plan.features.isNotEmpty()) Text(plan.features.joinToString(" • "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     val limitText = plan.limits.entries.joinToString(" • ") { pair ->
@@ -373,7 +420,7 @@ private fun TruthGuardPlanStrip(plans: List<TruthGuardPlan>, activePlanId: Strin
                     }
                     if (limitText.isNotBlank()) Text(limitText, style = MaterialTheme.typography.labelSmall)
                     if (plan.trialEligible && plan.trialDays > 0) Text(plan.trialDays.toString() + "-day free trial", style = MaterialTheme.typography.labelMedium)
-                    if (!active && !isAdmin) TextButton(onClick = onOpenPlans) { Text("Open plan options") }
+                    if (!active && !isAdmin && plan.playEligible) TextButton(onClick = { onBuyPlan(plan.id) }) { Text("Subscribe with Google Play") }
                 }
             }
         }
@@ -475,7 +522,12 @@ private fun parseTruthGuardPlans(body: JSONObject): List<TruthGuardPlan> {
             features = List(featureArray.length()) { featureArray.optString(it) },
             limits = limits,
             trialDays = item.optInt("trialDays", 0),
-            trialEligible = item.optBoolean("trialEligible", false)
+            trialEligible = item.optBoolean("trialEligible", false),
+            productId = item.optString("productId").ifBlank { null },
+            basePlans = (item.optJSONArray("basePlans") ?: JSONArray()).let { values ->
+                List(values.length()) { values.optString(it) }.filter { it.isNotBlank() }
+            },
+            playEligible = item.optBoolean("playEligible", false)
         )
     }.filter { it.id.isNotBlank() }
 }
