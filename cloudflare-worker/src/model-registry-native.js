@@ -39,7 +39,6 @@ function normalizeModel(raw, actorUid) {
   if (!PROVIDERS.has(providerId)) throw new Error("model_provider_unsupported");
   if (!isAllowedProviderForFeature(providerId, feature)) throw new Error("provider_not_supported_for_feature");
   if (providerId === "openai" && !isAllowedOpenAiModel(modelId, feature)) throw new Error("openai_model_not_allowed_by_project_policy");
-  if (requiredProvider && providerId !== requiredProvider) throw new Error("model_provider_incompatible_with_feature");
 
   if (!/^[a-zA-Z0-9._:-]{1,120}$/.test(modelId)) throw new Error("provider_model_id_invalid");
   if (!FEATURE_CAPABILITIES[feature]) throw new Error("model_feature_unsupported");
