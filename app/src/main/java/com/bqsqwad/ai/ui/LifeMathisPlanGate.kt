@@ -98,18 +98,6 @@ fun LifeMathisPlanGate(
                 }
                 if (parsed.isEmpty()) {
                     parsed += LifeMathisGatePlan(
-                        id = "lifemathisfree",
-                        name = "Free",
-                        price = mapOf("monthly" to "Free", "yearly" to "Free"),
-                        priceNgn = mapOf("monthly" to "Free", "yearly" to "Free"),
-                        basePlans = emptyList(),
-                        productId = null,
-                        playEligible = false,
-                        trialDays = 0,
-                        trialEligible = false,
-                        features = listOf("10 monthly conversations", "Core wisdom library", "Standard guidance")
-                    )
-                    parsed += LifeMathisGatePlan(
                         id = "lmstandard",
                         name = "Standard",
                         price = mapOf("monthly" to ".99 / mo"),
@@ -133,6 +121,22 @@ fun LifeMathisPlanGate(
                         trialEligible = true,
                         features = listOf("Unlimited conversations", "Advanced multi-factor analysis", "Personal wisdom journal", "VIP support")
                     )
+                }
+
+                // Always show Free even when the server catalog only returns paid tiers.
+                if (parsed.none { it.id == "lifemathisfree" }) {
+                    parsed.add(0, LifeMathisGatePlan(
+                        id = "lifemathisfree",
+                        name = "Free",
+                        price = mapOf("monthly" to "Free", "yearly" to "Free"),
+                        priceNgn = mapOf("monthly" to "Free", "yearly" to "Free"),
+                        basePlans = emptyList(),
+                        productId = null,
+                        playEligible = false,
+                        trialDays = 0,
+                        trialEligible = false,
+                        features = listOf("10 monthly conversations", "Core wisdom library", "Standard guidance")
+                    ))
                 }
 
                 val entitlementItems = entitlementResponse.optJSONArray("items") ?: JSONArray()
@@ -191,7 +195,7 @@ fun LifeMathisPlanGate(
     LaunchedEffect(Unit) { refresh() }
 
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().heightIn(max = 620.dp),
         shape = RoundedCornerShape(22.dp),
         tonalElevation = 4.dp,
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.24f))
@@ -313,8 +317,10 @@ private fun LifeMathisGateCard(
             if (isFree) {
                 Button(
                     onClick = {
+                        activePlanId = plan.id
                         onPlanDetails(plan.id, plan.name, plan.features)
                         onAccessGranted(true)
+                        onStatus("Life Mathis Free is selected. You can continue with the free plan.")
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
