@@ -133,3 +133,9 @@ test("model registry stores model identity only and writes replacement documents
   assert.match(source, /firestoreSet\("aiModelRegistry\/" \+ model\.id, model, false\)/);
   assert.match(source, /firestoreSet\("aiModelRegistry\/" \+ id, model, false\)/);
 });
+
+test("model registry normalization does not reference an undeclared requiredProvider", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const source = await readFile(new URL("../src/model-registry-native.js", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /requiredProvider/);
+});
