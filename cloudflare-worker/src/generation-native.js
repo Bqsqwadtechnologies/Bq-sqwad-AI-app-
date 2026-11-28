@@ -1,3 +1,4 @@
+import { retainFileBoxItems } from "./file-box-retention.js";
 import { firestoreGet, firestoreCreate, firestoreDelete, firestoreCommit, uploadSupabaseStorageObject, deleteSupabaseStorageObject } from "./firebase.js";
 import { calculateTokenCost } from "./token-billing-native.js";
 
@@ -108,6 +109,39 @@ async function persistGeneratedImage(user, encoded, id, prompt, operation = "gen
         promptHash, operation, storageBucket: bucket, storagePath: objectPath,
         contentType: "image/png", status: "ready", sourcePlatform: "android"
       });
+
+      // Automatically sync generated image to File Box (keeps newest 8, purges evicted from storage)
+      const fileBoxDoc = await firestoreGet("fileBox/" + String(user.uid)).catch(() => null) || {};
+      const currentItems = Array.isArray(fileBoxDoc.items) ? fileBoxDoc.items : [];
+      const newFileItem = {
+        id,
+        uid: String(user.uid),
+        title: String(prompt || "Generated photo").trim().slice(0, 180),
+        fileName: "photo-" + id.slice(0, 8) + ".png",
+        mimeType: "image/png",
+        size: bytes.byteLength,
+        objectPath,
+        bucket,
+        url: uploaded.signedUrl,
+        content: "",
+        createdAt,
+        expiresAt: new Date(Date.now() + 30 * 86400000).toISOString(),
+        retentionDays: 30
+      };
+      const retained = retainFileBoxItems([newFileItem, ...currentItems]);
+      const retainedPaths = new Set(retained.map(it => String(it.objectPath || "")).filter(Boolean));
+      const evicted = currentItems.filter(it => it.objectPath && !retainedPaths.has(String(it.objectPath)));
+      await firestoreSet("fileBox/" + String(user.uid), {
+        uid: String(user.uid),
+        items: retained,
+        retentionDays: fileBoxDoc.retentionDays || 30,
+        updatedAt: new Date()
+      }, true).catch(() => {});
+      for (const ev of evicted) {
+        if (ev.objectPath && String(ev.objectPath) !== objectPath) {
+          await deleteSupabaseStorageObject(ev.bucket || bucket, String(ev.objectPath)).catch(() => {});
+        }
+      }
     } catch (error) {
       await Promise.all([
         firestoreDelete("mediaObjects/" + id).catch(() => {}),

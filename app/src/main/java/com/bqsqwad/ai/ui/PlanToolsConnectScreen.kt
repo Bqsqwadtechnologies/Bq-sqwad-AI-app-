@@ -93,8 +93,8 @@ fun PlanToolsConnectScreen(
                 Text(if (refreshing) "Checking…" else "Refresh status")
             }
         }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(tools, key = { it.id }) { tool ->
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            tools.forEach { tool ->
                 val connected = connectedById[tool.id] ?: false
                 val status = statusById[tool.id] ?: "Checking connection…"
                 Column(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {

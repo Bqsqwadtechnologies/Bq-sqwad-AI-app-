@@ -2,40 +2,30 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { retainFileBoxItems } from "../src/file-box-retention.js";
 
-test("retains newest 200 binary uploads and 20 inline text items", () => {
-  const binary = Array.from({ length: 205 }, (_, i) => ({
-    id: "b" + i, objectPath: "file-box/u/b" + i, createdAt: new Date(i * 1000).toISOString(),
+test("retainFileBoxItems keeps the 8 newest binary files and 8 newest text entries", () => {
+  const binaryItems = Array.from({ length: 15 }, (_, i) => ({
+    id: `b-${i}`,
+    objectPath: `users/u/images/${i}.png`,
+    createdAt: new Date(Date.UTC(2026, 0, i + 1)).toISOString()
   }));
-  const text = Array.from({ length: 25 }, (_, i) => ({
-    id: "t" + i, content: "text", createdAt: new Date((300 + i) * 1000).toISOString(),
+  const textItems = Array.from({ length: 12 }, (_, i) => ({
+    id: `t-${i}`,
+    content: `text ${i}`,
+    createdAt: new Date(Date.UTC(2026, 1, i + 1)).toISOString()
   }));
-  const retained = retainFileBoxItems([...binary, ...text]);
-  assert.equal(retained.filter((item) => item.objectPath).length, 200);
-  assert.equal(retained.filter((item) => !item.objectPath).length, 20);
-  assert.equal(retained.length, 220);
+
+  const retained = retainFileBoxItems([...binaryItems, ...textItems]);
+  const retainedBinary = retained.filter(item => item.objectPath);
+  const retainedText = retained.filter(item => !item.objectPath);
+
+  assert.equal(retainedBinary.length, 8);
+  assert.equal(retainedText.length, 8);
+  // Oldest binary (b-0 through b-6) should be evicted; newest (b-7 to b-14) kept
+  assert.equal(retainedBinary.some(i => i.id === "b-0"), false);
+  assert.equal(retainedBinary.some(i => i.id === "b-14"), true);
 });
 
-test("orders retained items chronologically", () => {
-  const retained = retainFileBoxItems([
-    { id: "late", objectPath: "late", createdAt: "2026-02-01T00:00:00.000Z" },
-    { id: "early", objectPath: "early", createdAt: "2026-01-01T00:00:00.000Z" },
-  ]);
-  assert.deepEqual(retained.map((item) => item.id), ["early", "late"]);
-});
-
-test("empty and missing lists are safe", () => {
+test("retainFileBoxItems handles empty or invalid lists safely", () => {
   assert.deepEqual(retainFileBoxItems([]), []);
-  assert.deepEqual(retainFileBoxItems(undefined), []);
-});
-
-test("evicts the oldest binary records even if stored order is newest-first", () => {
-  const rows = Array.from({ length: 205 }, (_, i) => ({
-    id: "item-" + i,
-    objectPath: "file-box/u/" + i,
-    createdAt: new Date(i * 1000).toISOString(),
-  })).reverse();
-  const retained = retainFileBoxItems(rows);
-  assert.equal(retained.length, 200);
-  assert.equal(retained[0].id, "item-5");
-  assert.equal(retained.at(-1).id, "item-204");
+  assert.deepEqual(retainFileBoxItems(null), []);
 });

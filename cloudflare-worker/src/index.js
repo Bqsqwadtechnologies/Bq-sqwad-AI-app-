@@ -2438,6 +2438,27 @@ async function runConnectorAwareOpenAI(env, user, control, message, system, conv
     } catch {
       // One unavailable toolkit must not block other connected services.
     }
+    // If GitHub is connected but tool router returned 0 tools, attach standard GitHub tools
+    if (toolkit === "github" && !toolDefs.some(t => t.name.startsWith("bq_github_"))) {
+      const permission = await firestoreGet("composioPermissions/" + user.uid + "__github").catch(() => null);
+      const accessMode = permission && permission.uid === user.uid && permission.accessMode === "full_access" ? "full_access" : "read_only";
+      const fallbackTools = [
+        { slug: "GITHUB_LIST_REPOSITORIES_FOR_THE_AUTHENTICATED_USER", description: "List repositories accessible to the connected GitHub account." },
+        { slug: "GITHUB_GET_A_REPOSITORY", description: "Get details and file tree of a specific repository." },
+        { slug: "GITHUB_GET_REPOSITORY_CONTENT", description: "Read content of a file or directory in a repository." },
+        { slug: "GITHUB_SEARCH_REPOSITORIES", description: "Search for GitHub repositories." }
+      ];
+      for (const fb of fallbackTools) {
+        const name = "bq_github_" + fb.slug.toLowerCase();
+        toolDefs.push({
+          type: "function",
+          name,
+          description: "Connector action for GitHub. " + fb.description + " Access level: " + accessMode + ".",
+          parameters: { type: "object", properties: { owner: { type: "string" }, repo: { type: "string" }, path: { type: "string" }, q: { type: "string" } } }
+        });
+        toolMap.set(name, { toolkit: "github", slug: fb.slug });
+      }
+    }
     if (toolDefs.length >= 16) break;
   }
   if (memoryEnabled && toolDefs.length < 12) {
@@ -2458,7 +2479,7 @@ async function runConnectorAwareOpenAI(env, user, control, message, system, conv
     });
     toolMap.set("remember_fact", { memory: true });
   }
-  const model = DEFAULT_MODELS.openai;
+  const model = resolveAllowedOpenAITextModel(control?.modelId || DEFAULT_MODELS.openai);
   const explicitImageIntent = wantsImageGeneration(message);
   const generatedImages = [];
   let input = String(message || "");

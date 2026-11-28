@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import com.bqsqwad.ai.core.WorkspaceApiClient
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
@@ -198,30 +199,30 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
         loadingAccess = false
 
         scope.launch {
-            coroutineScope {
-                val settingsTask = async { withTimeoutOrNull(5_000L) { api.companionSettings() } }
-                val profileTask = async { withTimeoutOrNull(5_000L) { api.companionProfile() } }
+            supervisorScope {
+                val settingsTask = async { runCatching { withTimeoutOrNull(5_000L) { api.companionSettings() } }.getOrNull() }
+                val profileTask = async { runCatching { withTimeoutOrNull(5_000L) { api.companionProfile() } }.getOrNull() }
                 val historyTask = if (currentPlan?.id != "companionfree" && currentPlan != null) async {
-                    withTimeoutOrNull(6_000L) { api.companionHistory() }
+                    runCatching { withTimeoutOrNull(6_000L) { api.companionHistory() } }.getOrNull()
                 } else null
                 val memoryTask = if (memoryPlanEligible) async {
-                    withTimeoutOrNull(5_000L) { api.companionMemory() }
+                    runCatching { withTimeoutOrNull(5_000L) { api.companionMemory() } }.getOrNull()
                 } else null
 
-                settingsTask.await()?.let { response ->
-                    val settings = response.optJSONObject("settings") ?: JSONObject()
+                runCatching { settingsTask.await() }?.getOrNull()?.let { response ->
+                    val settings = response?.optJSONObject("settings") ?: JSONObject()
                     notifications = settings.optBoolean("notifications", true)
                     saveHistory = settings.optBoolean("saveHistory", true)
                     safeMode = settings.optBoolean("safeMode", true)
                 }
-                profileTask.await()?.let { response ->
-                    val profile = response.optJSONObject("profile") ?: JSONObject()
+                runCatching { profileTask.await() }?.getOrNull()?.let { response ->
+                    val profile = response?.optJSONObject("profile") ?: JSONObject()
                     personality = profile.optString("personality")
                         .takeIf { it in setOf("Caring", "Encouraging", "Calm", "Motivational", "Professional") } ?: "Caring"
                 }
                 if (saveHistory) {
-                    historyTask?.await()?.let { response ->
-                        val saved = response.optJSONArray("items") ?: JSONArray()
+                    runCatching { historyTask?.await() }?.getOrNull()?.let { response ->
+                        val saved = response?.optJSONArray("items") ?: JSONArray()
                         messages.clear()
                         for (index in saved.length() - 1 downTo 0) {
                             val item = saved.optJSONObject(index) ?: continue
@@ -236,8 +237,8 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                         }
                     }
                 }
-                memoryTask?.await()?.let { response ->
-                    memoryEnabled = response.optBoolean("enabled", false)
+                runCatching { memoryTask?.await() }?.getOrNull()?.let { response ->
+                    memoryEnabled = response?.optBoolean("enabled", false) == true
                 } ?: run {
                     if (!memoryPlanEligible) memoryEnabled = false
                 }
@@ -362,7 +363,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                             isRedirectedNoPlan = false
                             currentPlan = catalogPlans.firstOrNull { it.id == "companionfree" }
                                 ?: CompanionPlan("companionfree", "Companion Free", mapOf("Free" to "₦0"), listOf("Caring text conversation", "AI Companion"), 0, false)
-                            notice = "Switched to Free Mode. Luna is ready."
+                            notice = "Switched to Free Mode. AI Companion is ready."
                         },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp)

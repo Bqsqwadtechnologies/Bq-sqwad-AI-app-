@@ -194,7 +194,13 @@ fun LifeMathisPlanGate(
         tonalElevation = 4.dp,
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.24f))
     ) {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
             Text("Life Mathis plans", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Text(
                 "Plans and prices are loaded from the BQ Sqwad AI catalog. Monthly and yearly subscriptions use the configured subscription base plans. Access is unlocked only after server verification.",
@@ -214,7 +220,8 @@ fun LifeMathisPlanGate(
                         billing = billing,
                         onOpenPlans = onOpenPlans,
                         onStatus = onStatus,
-                        onAccessGranted = onAccessGranted
+                        onAccessGranted = onAccessGranted,
+                        onPlanDetails = onPlanDetails
                     )
                 }
             }
@@ -229,7 +236,8 @@ private fun LifeMathisGateCard(
     billing: PlayBillingClient?,
     onOpenPlans: () -> Unit,
     onStatus: (String) -> Unit,
-    onAccessGranted: (Boolean) -> Unit
+    onAccessGranted: (Boolean) -> Unit,
+    onPlanDetails: (String, String, List<String>) -> Unit = { _, _, _ -> }
 ) {
     val periods = listOf("monthly", "yearly").filter { plan.price.containsKey(it) }
     var selectedPeriod by remember(plan.id) {
@@ -302,14 +310,26 @@ private fun LifeMathisGateCard(
 
             if (isFree) {
                 Button(
-                    onClick = { onAccessGranted(true) },
+                    onClick = {
+                        onPlanDetails(plan.id, plan.name, plan.features)
+                        onAccessGranted(true)
+                    },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(if (active) "Current active plan" else "Continue on AI Life Mathis Free")
                 }
             } else {
-                Button(onClick = onOpenPlans, modifier = Modifier.fillMaxWidth()) {
-                    Text(if (selectedPeriod == "yearly") "Choose yearly plan" else "Choose monthly plan")
+                Button(
+                    onClick = {
+                        val targetBasePlan = plan.basePlans.firstOrNull { it.contains(selectedPeriod) } ?: plan.basePlans.firstOrNull()
+                        val launched = billing?.launchPurchase(plan.id, targetBasePlan)
+                        if (launched == null) {
+                            onOpenPlans()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (selectedPeriod == "yearly") "Subscribe Yearly" else "Subscribe Monthly")
                 }
             }
         }
