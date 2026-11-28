@@ -1866,6 +1866,115 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
         }
     }
 
+    if (activeDrawerChatAction != null) {
+        val item = activeDrawerChatAction!!
+        AlertDialog(
+            onDismissRequest = { if (!activeChatActionBusy) activeDrawerChatAction = null },
+            title = { Text(item.title.take(60), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1) },
+            text = {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Choose what to do with this saved conversation.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Button(
+                        onClick = {
+                            activeChatActionBusy = true
+                            shellScope.launch {
+                                try {
+                                    HistoryApiClient().delete(item.id)
+                                    drawerHistoryItems = drawerHistoryItems.filterNot { it.id == item.id }
+                                    activeDrawerChatAction = null
+                                } catch (error: Throwable) {
+                                    activeChatActionNotice = safeUserFacingIssue(error, "Could not delete conversation.")
+                                } finally {
+                                    activeChatActionBusy = false
+                                }
+                            }
+                        },
+                        enabled = !activeChatActionBusy,
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Delete chat")
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            activeChatActionBusy = true
+                            shellScope.launch {
+                                try {
+                                    val loadedMessages = HistoryApiClient().load(item.id)
+                                    restoredChat = item.id to loadedMessages
+                                    history = false
+                                    settings = false
+                                    connectorsOpen = false
+                                    helpOpen = false
+                                    plans = false
+                                    featureHub = false
+                                    fileBoxOpen = false
+                                    workspace = null
+                                    chatSessionNonce += 1
+                                    activeDrawerChatAction = null
+                                    drawerState.close()
+                                } catch (error: Throwable) {
+                                    activeChatActionNotice = safeUserFacingIssue(error, "Could not load chat.")
+                                } finally {
+                                    activeChatActionBusy = false
+                                }
+                            }
+                        },
+                        enabled = !activeChatActionBusy,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Open chat for encryption")
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            activeChatActionBusy = true
+                            shellScope.launch {
+                                try {
+                                    val loadedMessages = HistoryApiClient().load(item.id)
+                                    val transcript = loadedMessages.joinToString("\n\n") {
+                                        (if (it.mine) "You: " else "BQ Sqwad AI: ") + it.text
+                                    }
+                                    WorkspaceApiClient().saveProject(
+                                        title = item.title,
+                                        description = "Saved from conversation history",
+                                        content = transcript
+                                    )
+                                    activeDrawerChatAction = null
+                                } catch (error: Throwable) {
+                                    activeChatActionNotice = safeUserFacingIssue(error, "Could not add chat to project.")
+                                } finally {
+                                    activeChatActionBusy = false
+                                }
+                            }
+                        },
+                        enabled = !activeChatActionBusy,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Add to project")
+                    }
+                    activeChatActionNotice?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { activeDrawerChatAction = null; activeChatActionNotice = null }, enabled = !activeChatActionBusy) {
+                    Text("Close")
+                }
+            }
+        )
+    }
+
     if (signInRequired || signUpRequired) {
         Surface(
             modifier = Modifier.fillMaxSize(),
@@ -4026,116 +4135,6 @@ CRITICAL SECURITY: You do NOT have access to administrative dashboards or staff 
                     }
                 )
             }
-            if (activeDrawerChatAction != null) {
-                val item = activeDrawerChatAction!!
-                AlertDialog(
-                    onDismissRequest = { if (!activeChatActionBusy) activeDrawerChatAction = null },
-                    title = { Text(item.title.take(60), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1) },
-                    text = {
-                        Column(Modifier.fillMaxWidth().padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text("Manage this conversation:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            
-                            // 1. Delete Chat
-                            Button(
-                                onClick = {
-                                    activeChatActionBusy = true
-                                    shellScope.launch {
-                                        runCatching { HistoryApiClient().delete(item.id) }
-                                            .onSuccess {
-                                                drawerHistoryItems = drawerHistoryItems.filter { it.id != item.id }
-                                                if (historyId == item.id) {
-                                                    historyId = null
-                                                    messages.clear()
-                                                    chatTitleOverride = null
-                                                }
-                                                activeDrawerChatAction = null
-                                            }
-                                            .onFailure {
-                                                activeChatActionNotice = safeUserFacingIssue(it, "Could not delete conversation.")
-                                            }
-                                        activeChatActionBusy = false
-                                    }
-                                },
-                                enabled = !activeChatActionBusy,
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError),
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text("Delete chat")
-                            }
-
-                            // 2. Encrypt Chat
-                            OutlinedButton(
-                                onClick = {
-                                    activeChatActionBusy = true
-                                    shellScope.launch {
-                                        runCatching { HistoryApiClient().load(item.id) }
-                                            .onSuccess { loadedMessages ->
-                                                val transcript = loadedMessages.joinToString("\n\n") { (if (it.mine) "You: " else "BQ Sqwad AI: ") + it.text }
-                                                historyId = item.id
-                                                chatTitleOverride = item.title
-                                                messages.clear()
-                                                messages.addAll(loadedMessages)
-                                                activeDrawerChatAction = null
-                                                showSecretChats = true
-                                            }
-                                            .onFailure {
-                                                activeChatActionNotice = safeUserFacingIssue(it, "Could not load chat for encryption.")
-                                            }
-                                        activeChatActionBusy = false
-                                    }
-                                },
-                                enabled = !activeChatActionBusy,
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text("Encrypt chat (Secret Chat)")
-                            }
-
-                            // 3. Add to Project
-                            Button(
-                                onClick = {
-                                    activeChatActionBusy = true
-                                    shellScope.launch {
-                                        runCatching {
-                                            val loadedMessages = HistoryApiClient().load(item.id)
-                                            val transcript = loadedMessages.joinToString("\n\n") { (if (it.mine) "You: " else "BQ Sqwad AI: ") + it.text }
-                                            WorkspaceApiClient().saveProject(title = item.title, description = "Saved from conversation history", content = transcript)
-                                        }.onSuccess {
-                                            activeDrawerChatAction = null
-                                        }.onFailure {
-                                            activeChatActionNotice = safeUserFacingIssue(it, "Could not add chat to project.")
-                                        }
-                                        activeChatActionBusy = false
-                                    }
-                                },
-                                enabled = !activeChatActionBusy,
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text("Add to project")
-                            }
-
-                            activeChatActionNotice?.let {
-                                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                            }
-                        }
-                    },
-                    confirmButton = {},
-                    dismissButton = {
-                        TextButton(onClick = { activeDrawerChatAction = null }, enabled = !activeChatActionBusy) {
-                            Text("Cancel")
-                        }
-                    }
-                )
-            }
-
             SecretChatsDialog(
                 open = showSecretChats,
                 chatId = historyId,
