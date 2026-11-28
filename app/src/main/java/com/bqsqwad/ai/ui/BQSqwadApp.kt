@@ -4678,17 +4678,19 @@ val composerShape = RoundedCornerShape(26.dp)
                         dictationError?.let { dictationMessage ->
                             Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(dictationMessage, color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall)
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(
+                                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
                                     TextButton(onClick = {
                                         if (dictationReadyAudio != null) transcribeDictation()
                                         else speechPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                                    }) { Text(if (dictationReadyAudio != null) "Retry transcription" else "Record again") }
-                                    TextButton(onClick = { startSpeechRecognition() }) { Text("Use phone speech") }
+                                    }) { Text(if (dictationReadyAudio != null) "Retry transcription" else "Record again", maxLines = 1, softWrap = false) }
+                                    TextButton(onClick = { startSpeechRecognition() }) { Text("Use phone speech", maxLines = 1, softWrap = false) }
                                     if (dictationNeedsCredits) {
-                                        Button(onClick = { openCredits() }) { Text("Buy credits") }
+                                        Button(onClick = { openCredits() }) { Text("Buy credits", maxLines = 1, softWrap = false) }
                                     }
                                 }
-                            }
                         }
                         if (!dictationUiActive) Column(
                             Modifier
@@ -8572,11 +8574,14 @@ item { SettingsSectionTitle("Appearance", "Theme, color and text size") }
             }
             item {
                 SurfaceCard("Chat background", "Choose a picture to display behind Main Chat. It is saved to your BQ account and syncs with the website and Android app. Each successful change uses the configured credit price.")
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Button(enabled = !changingChatBackground, onClick = { chatBackgroundPicker.launch(arrayOf("image/*")) }) {
                         Icon(Icons.Default.Image, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(if (changingChatBackground) "Uploading…" else "Choose picture · configured price")
+                        Spacer(Modifier.width(6.dp))
+                        Text(if (changingChatBackground) "Uploading…" else "Choose picture", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelMedium)
                     }
                     if (customChatBackgroundUri != null) {
                         OutlinedButton(enabled = !changingChatBackground, onClick = {
