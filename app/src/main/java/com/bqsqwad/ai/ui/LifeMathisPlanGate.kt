@@ -174,7 +174,8 @@ fun LifeMathisPlanGate(
                         active = activePlanId == plan.id,
                         billing = billing,
                         onOpenPlans = onOpenPlans,
-                        onStatus = onStatus
+                        onStatus = onStatus,
+                        onAccessGranted = onAccessGranted
                     )
                 }
             }
@@ -188,7 +189,8 @@ private fun LifeMathisGateCard(
     active: Boolean,
     billing: PlayBillingClient?,
     onOpenPlans: () -> Unit,
-    onStatus: (String) -> Unit
+    onStatus: (String) -> Unit,
+    onAccessGranted: (Boolean) -> Unit
 ) {
     val periods = listOf("monthly", "yearly").filter { plan.price.containsKey(it) }
     var selectedPeriod by remember(plan.id) {
