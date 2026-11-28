@@ -283,15 +283,11 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
         }
     }
     LaunchedEffect(signedIn){load()}
+    // Catalog and account state load once when this screen opens or the
+    // authentication state changes. Checkout success explicitly refreshes them;
+    // avoid polling credits and entitlements every 15 seconds while the user
+    // is simply browsing the catalog.
     LaunchedEffect(signedIn) {
-        while (signedIn) {
-            kotlinx.coroutines.delay(15_000)
-            val api = WorkspaceApiClient()
-            runCatching { api.credits() }
-                .onSuccess { latest -> credits = latest }
-            runCatching { parseUserEntitlements(api.entitlements()) }
-                .onSuccess { latest -> entitlements = latest }
-        }
         if (!signedIn) {
             credits = null
             entitlements = emptyList()
